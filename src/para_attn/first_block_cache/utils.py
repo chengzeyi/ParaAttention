@@ -95,7 +95,7 @@ class CachedTransformerBlocks(torch.nn.Module):
         )
 
         if self.transformer is not None and getattr(self.transformer, "_is_parallelized", False):
-            can_use_cache_t = torch.full((1,), can_use_cache, dtype=torch.bool, device=hidden_states.device)
+            can_use_cache_t = torch.full([1], can_use_cache, dtype=torch.bool, device=hidden_states.device)
             can_use_cache_t = DP.get_complete_tensor(can_use_cache_t, dim=0)
             can_use_cache = can_use_cache_t.all().item()
 
