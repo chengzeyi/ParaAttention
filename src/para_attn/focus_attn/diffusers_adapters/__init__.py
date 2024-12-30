@@ -17,7 +17,7 @@ def apply_focus_attn_on_transformer(transformer, *args, **kwargs):
         raise ValueError(f"Unknown transformer class name: {transformer_cls_name}")
 
     adapter_module = importlib.import_module(f".{adapter_name}", __package__)
-    apply_focus_attn_on_transformer_fn = getattr(adapter_module, "apply_focus_attn_onrsify_transformer")
+    apply_focus_attn_on_transformer_fn = getattr(adapter_module, "apply_focus_attn_on_transformer")
     return apply_focus_attn_on_transformer_fn(transformer, *args, **kwargs)
 
 

@@ -22,16 +22,6 @@ pipe = HunyuanVideoPipeline.from_pretrained(
     revision="refs/pr/18",
 ).to(f"cuda:{dist.get_rank()}")
 
-pipe.vae.enable_tiling(
-    # Make it runnable on GPUs with 48GB memory
-    # tile_sample_min_height=128,
-    # tile_sample_stride_height=96,
-    # tile_sample_min_width=128,
-    # tile_sample_stride_width=96,
-    # tile_sample_min_num_frames=32,
-    # tile_sample_stride_num_frames=24,
-)
-
 from para_attn.context_parallel import init_context_parallel_mesh
 from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
 from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
@@ -45,7 +35,17 @@ parallelize_pipe(
 )
 parallelize_vae(pipe.vae, mesh=mesh._flatten())
 
+# Enable memory savings
 # pipe.enable_model_cpu_offload(gpu_id=dist.get_rank())
+pipe.vae.enable_tiling(
+    # Make it runnable on GPUs with 48GB memory
+    # tile_sample_min_height=128,
+    # tile_sample_stride_height=96,
+    # tile_sample_min_width=128,
+    # tile_sample_stride_width=96,
+    # tile_sample_min_num_frames=32,
+    # tile_sample_stride_num_frames=24,
+)
 
 # torch._inductor.config.reorder_for_compute_comm_overlap = True
 # pipe.transformer = torch.compile(pipe.transformer, mode="max-autotune-no-cudagraphs")

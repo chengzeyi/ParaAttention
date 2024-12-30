@@ -10,6 +10,9 @@ from para_attn.para_attn_interface import UnifiedAttnMode
 
 
 def parallelize_transformer(transformer: MochiTransformer3DModel, *, mesh=None):
+    if getattr(transformer, "_is_parallelized", False):
+        return transformer
+
     mesh = init_context_parallel_mesh(transformer.device.type, mesh=mesh)
     batch_mesh = mesh["batch"]
     seq_mesh = mesh["ring", "ulysses"]._flatten()
@@ -112,6 +115,8 @@ def parallelize_transformer(transformer: MochiTransformer3DModel, *, mesh=None):
 
     new_rope_forward = new_rope_forward.__get__(transformer.rope)
     transformer.rope.forward = new_rope_forward
+
+    transformer._is_parallelized = True
 
     return transformer
 

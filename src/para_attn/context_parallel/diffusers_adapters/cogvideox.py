@@ -10,6 +10,9 @@ from para_attn.para_attn_interface import UnifiedAttnMode
 
 
 def parallelize_transformer(transformer: CogVideoXTransformer3DModel, *, mesh=None):
+    if getattr(transformer, "_is_parallelized", False):
+        return transformer
+
     mesh = init_context_parallel_mesh(transformer.device.type, mesh=mesh)
     batch_mesh = mesh["batch"]
     seq_mesh = mesh["ring", "ulysses"]._flatten()
@@ -103,6 +106,8 @@ def parallelize_transformer(transformer: CogVideoXTransformer3DModel, *, mesh=No
 
     new_patch_embed_forward = new_patch_embed_forward.__get__(transformer.patch_embed)
     transformer.patch_embed.forward = new_patch_embed_forward
+
+    transformer._is_parallelized = True
 
     return transformer
 

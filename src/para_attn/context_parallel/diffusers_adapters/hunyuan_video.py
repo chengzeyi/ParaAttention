@@ -14,6 +14,9 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh=None):
+    if getattr(transformer, "_is_parallelized", False):
+        return transformer
+
     mesh = init_context_parallel_mesh(transformer.device.type, mesh=mesh)
     batch_mesh = mesh["batch"]
     seq_mesh = mesh["ring", "ulysses"]._flatten()
@@ -176,6 +179,8 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
 
     new_forward = new_forward.__get__(transformer)
     transformer.forward = new_forward
+
+    transformer._is_parallelized = True
 
     return transformer
 

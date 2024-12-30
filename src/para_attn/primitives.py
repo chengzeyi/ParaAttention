@@ -2,8 +2,13 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.distributed as dist
-import torch.distributed._functional_collectives as ft_c
-import torch.distributed.distributed_c10d as c10d
+
+if dist.is_available():
+    import torch.distributed._functional_collectives as ft_c
+    import torch.distributed.distributed_c10d as c10d
+else:
+    ft_c = None
+    c10d = None
 
 
 def get_group(group=None):
