@@ -149,9 +149,10 @@ apply_cache_on_pipe(pipe)
 
 from torchao.quantization import autoquant
 
-pipeline.transformer.to(memory_format=torch.channels_last)
-pipeline.transformer = torch.compile(
-   pipeline.transformer, mode="max-autotune-no-cudagraphs",
+pipe.transformer.to(memory_format=torch.channels_last)
+pipe.transformer = autoquant(pipe.transformer, error_on_unseen=False)
+pipe.transformer = torch.compile(
+   pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
 
 pipe.vae.enable_tiling()
@@ -236,9 +237,10 @@ from torchao.quantization import autoquant
 
 torch._inductor.config.reorder_for_compute_comm_overlap = True
 
-pipeline.transformer.to(memory_format=torch.channels_last)
-pipeline.transformer = torch.compile(
-   pipeline.transformer, mode="max-autotune-no-cudagraphs",
+pipe.transformer.to(memory_format=torch.channels_last)
+pipe.transformer = autoquant(pipe.transformer, error_on_unseen=False)
+pipe.transformer = torch.compile(
+   pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
 
 pipe.vae.enable_tiling()
