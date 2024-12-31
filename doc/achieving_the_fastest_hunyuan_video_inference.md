@@ -150,10 +150,9 @@ from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
 apply_cache_on_pipe(pipe)
 
 from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
-from torchao.quantization.quant_api import PerRow
 
 quantize_(pipe.text_encoder, float8_weight_only())
-quantize_(pipe.transformer, float8_dynamic_activation_float8_weight(granularity=PerRow()))
+quantize_(pipe.transformer, float8_dynamic_activation_float8_weight())
 pipe.transformer = torch.compile(
    pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
@@ -167,7 +166,7 @@ for i in range(2):
         height=720,
         width=1280,
         num_frames=129,
-        num_inference_steps=30,
+        num_inference_steps=1 if i == 0 else 30,
     ).frames[0]
     end = time.time()
     if i == 0:
@@ -237,12 +236,11 @@ from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
 apply_cache_on_pipe(pipe)
 
 from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
-from torchao.quantization.quant_api import PerRow
 
 torch._inductor.config.reorder_for_compute_comm_overlap = True
 
 quantize_(pipe.text_encoder, float8_weight_only())
-quantize_(pipe.transformer, float8_dynamic_activation_float8_weight(granularity=PerRow()))
+quantize_(pipe.transformer, float8_dynamic_activation_float8_weight())
 pipe.transformer = torch.compile(
    pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
@@ -256,7 +254,7 @@ for i in range(2):
         height=720,
         width=1280,
         num_frames=129,
-        num_inference_steps=30,
+        num_inference_steps=1 if i == 0 else 30,
         output_type="pil" if dist.get_rank() == 0 else "pt",
     ).frames[0]
     end = time.time()
