@@ -110,6 +110,8 @@ Now, on one single NVIDIA H800 GPU, we can generate 129 frames with 720p resolut
 
 To further speed up the inference and reduce memory usage, we can quantize the model into FP8 with dynamic quantization.
 If your GPU is not capable of FP8 inference, you can choose to quantize the model int INT8.
+Here, we use `float8_weight_only` and `float8_dynamic_activation_float8_weight` to quantize the text encoder and transformer model respectively.
+If you want IN8 quantization, you can use `int8_weight_only` and `int8_dynamic_activation_int8_weight` instead.
 [diffusers-torchao](https://github.com/sayakpaul/diffusers-torchao) provides a really good tutorial on how to quantize models in `diffusers` and achieve a good speedup.
 Here, we simply install the latest `torchao` that is capable of quantizing HunyuanVideo:
 
@@ -147,10 +149,11 @@ from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
 
 apply_cache_on_pipe(pipe)
 
-from torchao.quantization import autoquant
+from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
+from torchao.quantization.quant_api import PerRow
 
-pipe.transformer.to(memory_format=torch.channels_last)
-pipe.transformer = autoquant(pipe.transformer, error_on_unseen=False)
+quantize_(pipe.text_encoder, float8_weight_only())
+quantize_(pipe.transformer, float8_dynamic_activation_float8_weight(granularity=PerRow()))
 pipe.transformer = torch.compile(
    pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
@@ -164,7 +167,7 @@ for i in range(2):
         height=720,
         width=1280,
         num_frames=129,
-        num_inference_steps=1 if i == 0 else 30,
+        num_inference_steps=30,
     ).frames[0]
     end = time.time()
     if i == 0:
@@ -214,7 +217,7 @@ pipe = HunyuanVideoPipeline.from_pretrained(
     transformer=transformer,
     torch_dtype=torch.float16,
     revision="refs/pr/18",
-).to("cuda")
+).to(f"cuda:{dist.get_rank()}")
 
 from para_attn.context_parallel import init_context_parallel_mesh
 from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
@@ -233,12 +236,13 @@ from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
 
 apply_cache_on_pipe(pipe)
 
-from torchao.quantization import autoquant
+from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
+from torchao.quantization.quant_api import PerRow
 
 torch._inductor.config.reorder_for_compute_comm_overlap = True
 
-pipe.transformer.to(memory_format=torch.channels_last)
-pipe.transformer = autoquant(pipe.transformer, error_on_unseen=False)
+quantize_(pipe.text_encoder, float8_weight_only())
+quantize_(pipe.transformer, float8_dynamic_activation_float8_weight(granularity=PerRow()))
 pipe.transformer = torch.compile(
    pipe.transformer, mode="max-autotune-no-cudagraphs",
 )
@@ -252,7 +256,7 @@ for i in range(2):
         height=720,
         width=1280,
         num_frames=129,
-        num_inference_steps=1 if i == 0 else 30,
+        num_inference_steps=30,
         output_type="pil" if dist.get_rank() == 0 else "pt",
     ).frames[0]
     end = time.time()
