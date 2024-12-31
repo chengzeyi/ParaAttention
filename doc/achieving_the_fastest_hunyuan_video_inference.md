@@ -182,6 +182,7 @@ We now achieve a xx speedup compared to the base line.
 
 We are not satisfied with the speedup we have achieved so far.
 If we want to accelerate the inference further, we can use context parallelism to parallelize the inference.
+Luckily, in ParaAttention, we design our API in a compositional way so that we can combine context parallelism with first block cache and dynamic quantization all together.
 We provide very detailed instructions and examples of how to scale up the inference with multiple GPUs in our [ParaAttention](https://github.com/chengzeyi/ParaAttention) repository.
 Users can easily launch the inference with multiple GPUs by calling `torchrun`.
 If there is a need to make the inference process persistent and serviceable, it is suggested to use `torch.multiprocessing` to write your own inference processor, which can eliminate the overhead of launching the process and loading and recompiling the model.
