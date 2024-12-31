@@ -94,7 +94,7 @@ By caching the output of the transformer blocks in the transformer model and res
 However, it is hard to decide when to reuse the cache to ensure the quality of the generated video.
 Recently, [TeaCache](https://github.com/ali-vilab/TeaCache) suggests that we can use the timestep embedding to approximate the difference among model outputs.
 However, TeaCache is still a bit complex as it needs a rescaling strategy to ensure the accuracy of the cache.
-In ParaAttention, we find that we can directly use the residual difference of the first transformer block output to approximate the difference among model outputs.
+In ParaAttention, we find that we can directly use **the residual difference of the first transformer block output** to approximate the difference among model outputs.
 When the difference is small enough, we can reuse the residual difference of previous inference steps, meaning that we in fact skip this denoising step.
 This has been proved to be effective in our experiments and we achieve a nearly 2x speedup on HunyuanVideo inference with very good quality.
 
