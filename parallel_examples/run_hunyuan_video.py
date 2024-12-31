@@ -35,6 +35,10 @@ parallelize_pipe(
 )
 parallelize_vae(pipe.vae, mesh=mesh._flatten())
 
+from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
+
+apply_cache_on_pipe(pipe)
+
 # Enable memory savings
 # pipe.enable_model_cpu_offload(gpu_id=dist.get_rank())
 pipe.vae.enable_tiling(

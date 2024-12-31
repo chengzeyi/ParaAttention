@@ -23,6 +23,10 @@ parallelize_pipe(
     ),
 )
 
+from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
+
+apply_cache_on_pipe(pipe)
+
 # pipe.enable_model_cpu_offload(gpu_id=dist.get_rank())
 # pipe.enable_sequential_cpu_offload(gpu_id=dist.get_rank())
 pipe.vae.enable_slicing()

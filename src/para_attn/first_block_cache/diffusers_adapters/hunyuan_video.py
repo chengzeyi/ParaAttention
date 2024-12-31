@@ -15,7 +15,7 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 def apply_cache_on_transformer(
     transformer: HunyuanVideoTransformer3DModel,
     *,
-    residual_diff_threshold=0.025,
+    residual_diff_threshold=0.035,
 ):
     cached_transformer_blocks = torch.nn.ModuleList(
         [
