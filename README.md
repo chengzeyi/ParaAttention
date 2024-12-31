@@ -143,6 +143,7 @@ Please refer to examples in the `parallel_examples` and `first_block_cache_examp
 
 | Model | Command |
 | - | - |
+| `FLUX` | `python3 first_block_cache_examples/run_flux.py` |
 | `HunyuanVideo` | `python3 first_block_cache_examples/run_hunyuan_video.py` |
 | `Mochi` | `python3 first_block_cache_examples/run_mochi.py` |
 | `CogVideoX` | `python3 first_block_cache_examples/run_cogvideox.py` |
@@ -150,7 +151,7 @@ Please refer to examples in the `parallel_examples` and `first_block_cache_examp
 ## Parallelize VAE
 
 VAE can be parallelized with `para_attn.parallel_vae.diffusers_adapters.parallelize_vae`.
-Currently, only `AutoencoderKL` is supported.
+Currently, only `AutoencoderKL` and `AutoencoderKLHunyuanVideo` are supported.
 
 ``` python
 import torch

@@ -62,23 +62,45 @@ def cache_context(cache_context):
         _current_cache_context = old_cache_context
 
 
-def are_two_tensors_similar(output1, output2, *, threshold):
-    diff = (output1 - output2).abs().mean().item() / output1.abs().mean().item()
+@torch.compiler.disable()
+def are_two_tensors_similar(t1, t2, *, threshold):
+    diff = (t1 - t2).abs().mean().item() / t1.abs().mean().item()
     return diff < threshold
 
 
 class CachedTransformerBlocks(torch.nn.Module):
-    def __init__(self, transformer_blocks, *, transformer=None, residual_diff_threshold):
+    def __init__(
+        self,
+        transformer_blocks,
+        single_transformer_blocks=None,
+        *,
+        transformer=None,
+        residual_diff_threshold,
+        return_hidden_states_first=True,
+    ):
         super().__init__()
         self.transformer = transformer
-        self.transformer_blocks = torch.nn.ModuleList(transformer_blocks)
+        self.transformer_blocks = transformer_blocks
+        self.single_transformer_blocks = single_transformer_blocks
         self.residual_diff_threshold = residual_diff_threshold
+        self.return_hidden_states_first = return_hidden_states_first
 
     def forward(self, hidden_states, encoder_hidden_states, *args, **kwargs):
         if self.residual_diff_threshold <= 0.0:
             for block in self.transformer_blocks:
                 hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
-            return hidden_states, encoder_hidden_states
+                if not self.return_hidden_states_first:
+                    hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
+            if self.single_transformer_blocks is not None:
+                hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+                for block in self.single_transformer_blocks:
+                    hidden_states = block(hidden_states, *args, **kwargs)
+                hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :]
+            return (
+                (hidden_states, encoder_hidden_states)
+                if self.return_hidden_states_first
+                else (encoder_hidden_states, hidden_states)
+            )
 
         cache_context = get_current_cache_context()
         assert cache_context is not None, "cache_context must be set before"
@@ -88,6 +110,8 @@ class CachedTransformerBlocks(torch.nn.Module):
         hidden_states, encoder_hidden_states = first_transformer_block(
             hidden_states, encoder_hidden_states, *args, **kwargs
         )
+        if not self.return_hidden_states_first:
+            hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
         first_hidden_states_residual = hidden_states - original_hidden_states
         prev_first_hidden_states_residual = cache_context.get_buffer("first_hidden_states_residual")
         can_use_cache = prev_first_hidden_states_residual is not None and are_two_tensors_similar(
@@ -106,8 +130,19 @@ class CachedTransformerBlocks(torch.nn.Module):
         else:
             for block in self.transformer_blocks[1:]:
                 hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
+                if not self.return_hidden_states_first:
+                    hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
+            if self.single_transformer_blocks is not None:
+                hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+                for block in self.single_transformer_blocks:
+                    hidden_states = block(hidden_states, *args, **kwargs)
+                hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :]
             hidden_states_residual = hidden_states - original_hidden_states
             cache_context.set_buffer("hidden_states_residual", hidden_states_residual)
 
         cache_context.set_buffer("first_hidden_states_residual", first_hidden_states_residual)
-        return hidden_states, encoder_hidden_states
+        return (
+            (hidden_states, encoder_hidden_states)
+            if self.return_hidden_states_first
+            else (encoder_hidden_states, hidden_states)
+        )

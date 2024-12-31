@@ -7,6 +7,8 @@ def apply_cache_on_transformer(transformer, *args, **kwargs):
     transformer_cls_name = transformer.__class__.__name__
     if False:
         pass
+    elif transformer_cls_name.startswith("Flux"):
+        adapter_name = "flux"
     elif transformer_cls_name.startswith("Mochi"):
         adapter_name = "mochi"
     elif transformer_cls_name.startswith("CogVideoX"):
@@ -27,6 +29,8 @@ def apply_cache_on_pipe(pipe: DiffusionPipeline, *args, **kwargs):
     pipe_cls_name = pipe.__class__.__name__
     if False:
         pass
+    elif pipe_cls_name.startswith("Flux"):
+        adapter_name = "flux"
     elif pipe_cls_name.startswith("Mochi"):
         adapter_name = "mochi"
     elif pipe_cls_name.startswith("CogVideoX"):

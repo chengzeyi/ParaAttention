@@ -270,7 +270,7 @@ dist.destroy_process_group()
 We save the above code to `run_hunyuan_video.py` and run it with `torchrun`:
 
 ```bash
-torchrun --nproc_per_node=8 python3 run_hunyuan_video.py
+torchrun --nproc_per_node=8 run_hunyuan_video.py
 ```
 
 With 8 NVIDIA H800 GPUs, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
