@@ -113,39 +113,82 @@ class CachedTransformerBlocks(torch.nn.Module):
         if not self.return_hidden_states_first:
             hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
         first_hidden_states_residual = hidden_states - original_hidden_states
+        del original_hidden_states
 
-        torch._dynamo.graph_break()
-        prev_first_hidden_states_residual = cache_context.get_buffer("first_hidden_states_residual")
-        can_use_cache = prev_first_hidden_states_residual is not None and are_two_tensors_similar(
-            prev_first_hidden_states_residual, first_hidden_states_residual, threshold=self.residual_diff_threshold
-        )
-        torch._dynamo.graph_break()
+        @torch.compiler.disable()
+        def get_can_use_cache(first_hidden_states_residual, threshold):
+            prev_first_hidden_states_residual = cache_context.get_buffer("first_hidden_states_residual")
+            can_use_cache = prev_first_hidden_states_residual is not None and are_two_tensors_similar(
+                prev_first_hidden_states_residual, first_hidden_states_residual, threshold=threshold
+            )
+            return can_use_cache
+
+        can_use_cache = get_can_use_cache(first_hidden_states_residual, threshold=self.residual_diff_threshold)
+        cache_context.set_buffer("first_hidden_states_residual", first_hidden_states_residual)
+        del first_hidden_states_residual
 
         if self.transformer is not None and getattr(self.transformer, "_is_parallelized", False):
-            can_use_cache_t = torch.full([1], can_use_cache, dtype=torch.bool, device=hidden_states.device)
-            can_use_cache_t = DP.get_complete_tensor(can_use_cache_t, dim=0)
-            can_use_cache = can_use_cache_t.all().item()
+
+            @torch.compiler.disable()
+            def reduce_can_use_cache(can_use_cache, device):
+                can_use_cache_t = torch.full([1], can_use_cache, dtype=torch.bool, device=device)
+                can_use_cache_t = DP.get_complete_tensor(can_use_cache_t, dim=0)
+                can_use_cache = can_use_cache_t.all().item()
+                return can_use_cache
+
+            can_use_cache = reduce_can_use_cache(can_use_cache, device=hidden_states.device)
 
         torch._dynamo.graph_break()
         if can_use_cache:
-            hidden_states_residual = cache_context.get_buffer("hidden_states_residual")
-            assert hidden_states_residual is not None, "hidden_states_residual must be set before"
-            hidden_states = original_hidden_states + hidden_states_residual
+
+            @torch.compiler.disable()
+            def apply_prev_hidden_states_residual(hidden_states, encoder_hidden_states):
+                cache_context = get_current_cache_context()
+                assert cache_context is not None, "cache_context must be set before"
+
+                hidden_states_residual = cache_context.get_buffer("hidden_states_residual")
+                assert hidden_states_residual is not None, "hidden_states_residual must be set before"
+                hidden_states = hidden_states + hidden_states_residual
+
+                encoder_hidden_states_residual = cache_context.get_buffer("encoder_hidden_states_residual")
+                assert encoder_hidden_states_residual is not None, "encoder_hidden_states_residual must be set before"
+                encoder_hidden_states = encoder_hidden_states + encoder_hidden_states_residual
+
+                return hidden_states, encoder_hidden_states
+
+            hidden_states, encoder_hidden_states = apply_prev_hidden_states_residual(
+                hidden_states, encoder_hidden_states
+            )
         else:
-            for block in self.transformer_blocks[1:]:
-                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
-                if not self.return_hidden_states_first:
-                    hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
-            if self.single_transformer_blocks is not None:
-                hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
-                for block in self.single_transformer_blocks:
-                    hidden_states = block(hidden_states, *args, **kwargs)
-                hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :]
-            hidden_states_residual = hidden_states - original_hidden_states
+
+            def call_remaining_transformer_blocks(hidden_states, encoder_hidden_states, *args, **kwargs):
+                original_hidden_states = hidden_states
+                original_encoder_hidden_states = encoder_hidden_states
+                for block in self.transformer_blocks[1:]:
+                    hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
+                    if not self.return_hidden_states_first:
+                        hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
+                if self.single_transformer_blocks is not None:
+                    hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+                    for block in self.single_transformer_blocks:
+                        hidden_states = block(hidden_states, *args, **kwargs)
+                    encoder_hidden_states, hidden_states = hidden_states.split(
+                        [encoder_hidden_states.shape[1], hidden_states.shape[1] - encoder_hidden_states.shape[1]], dim=1
+                    )
+                hidden_states_residual = hidden_states - original_hidden_states
+                encoder_hidden_states_residual = encoder_hidden_states - original_encoder_hidden_states
+                return hidden_states, encoder_hidden_states, hidden_states_residual, encoder_hidden_states_residual
+
+            (
+                hidden_states,
+                encoder_hidden_states,
+                hidden_states_residual,
+                encoder_hidden_states_residual,
+            ) = call_remaining_transformer_blocks(hidden_states, encoder_hidden_states, *args, **kwargs)
             cache_context.set_buffer("hidden_states_residual", hidden_states_residual)
+            cache_context.set_buffer("encoder_hidden_states_residual", encoder_hidden_states_residual)
         torch._dynamo.graph_break()
 
-        cache_context.set_buffer("first_hidden_states_residual", first_hidden_states_residual)
         return (
             (hidden_states, encoder_hidden_states)
             if self.return_hidden_states_first

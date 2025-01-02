@@ -135,9 +135,7 @@ def get_complete_tensor(
     dim: int = 0,
     group=None,
 ) -> torch.Tensor:
-    permute_dims = list(range(tensor.dim()))
-    permute_dims[dim], permute_dims[0] = permute_dims[0], permute_dims[dim]
-    tensor = tensor.permute(permute_dims).contiguous()
+    tensor = tensor.transpose(0, dim).contiguous()
     output_tensor = all_gather_tensor_sync(tensor, gather_dim=0, group=group)
-    output_tensor = output_tensor.permute(permute_dims)
+    output_tensor = output_tensor.transpose(0, dim)
     return output_tensor

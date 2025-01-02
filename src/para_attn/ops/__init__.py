@@ -317,7 +317,7 @@ def _(
         query,
         key,
         value,
-        attn_mask=attn_mask,
+        # attn_mask=attn_mask,
         dropout_p=dropout_p,
         is_causal=is_causal,
         scale=scale,

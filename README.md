@@ -3,6 +3,8 @@
 Context parallel attention that accelerates DiT model inference with dynamic caching,
 supporting both [**Ulysses Style**](https://arxiv.org/abs/2309.14509) and [**Ring Style**](https://arxiv.org/abs/2310.01889) parallelism.
 
+🔥[Fastest HunyuanVideo Inference with Context Parallelism and First Block Cache on NVIDIA L20 GPUs](doc/fastest_hunyuan_video.md)🔥
+
 This aims to provide:
 
 - [x] An easy to use interface to speed up model inference with context parallel, dynamic caching and `torch.compile`. Make **`FLUX`**, **`HunyuanVideo`** and **`Mochi`** inference much faster losslessly.
