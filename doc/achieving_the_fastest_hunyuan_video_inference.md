@@ -86,7 +86,7 @@ We pass `residual_diff_threshold=0.0` to `apply_cache_on_pipe` to disable the ca
 Here, we only want it to cut the text conditions to avoid OOM errors.
 If you still experience OOM errors, you can try calling `pipe.enable_model_cpu_offload()` after calling `apply_cache_on_pipe`.
 
-This is our base line, on one single NVIDIA H800 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds.
+This is our base line, on one single NVIDIA H800 NVLink GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds.
 
 ## Apply First Block Cache on HunyuanVideo
 
@@ -104,14 +104,13 @@ To apply the first block cache on HunyuanVideo, we can call `apply_cache_on_pipe
 apply_cache_on_pipe(pipe, residual_diff_threshold=0.035)
 ```
 
-Now, on one single NVIDIA H800 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
+We observe that the first block cache is very effective in speeding up the inference, and maintaining nearly no quality loss in the generated video.
+Now, on one single NVIDIA H800 NVLink GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
 
 ## Quantize the model into FP8
 
 To further speed up the inference and reduce memory usage, we can quantize the model into FP8 with dynamic quantization.
-If your GPU is not capable of FP8 inference, you can choose to quantize the model int INT8.
-Here, we use `float8_weight_only` and `float8_dynamic_activation_float8_weight` to quantize the text encoder and transformer model respectively.
-If you want IN8 quantization, you can use `int8_weight_only` and `int8_dynamic_activation_int8_weight` instead.
+Here, we use  `float8_weight_only` and `float8_dynamic_activation_float8_weight`to quantize the text encoder and transformer model respectively. The default quantization method is per tensor quantization. If your GPU supports row-wise quantization, you can also try it for better accuracy.
 [diffusers-torchao](https://github.com/sayakpaul/diffusers-torchao) provides a really good tutorial on how to quantize models in `diffusers` and achieve a good speedup.
 Here, we simply install the latest `torchao` that is capable of quantizing HunyuanVideo:
 
@@ -183,7 +182,7 @@ We now achieve a xx speedup compared to the base line.
 
 ## Parallelize the inference with Context Parallelism
 
-We are not satisfied with the speedup we have achieved so far.
+A lot faster than before, right? But we are not satisfied with the speedup we have achieved so far.
 If we want to accelerate the inference further, we can use context parallelism to parallelize the inference.
 Luckily, in ParaAttention, we design our API in a compositional way so that we can combine context parallelism with first block cache and dynamic quantization all together.
 We provide very detailed instructions and examples of how to scale up the inference with multiple GPUs in our [ParaAttention](https://github.com/chengzeyi/ParaAttention) repository.
@@ -201,6 +200,8 @@ from diffusers.utils import export_to_video
 
 dist.init_process_group()
 
+torch.cuda.set_device(dist.get_rank())
+
 # [rank1]: RuntimeError: Expected mha_graph->execute(handle, variant_pack, workspace_ptr.get()).is_good() to be true, but got false.  (Could this error message be improved?  If so, please report an enhancement request to PyTorch.)
 torch.backends.cuda.enable_cudnn_sdp(False)
 
@@ -216,7 +217,7 @@ pipe = HunyuanVideoPipeline.from_pretrained(
     transformer=transformer,
     torch_dtype=torch.float16,
     revision="refs/pr/18",
-).to(f"cuda:{dist.get_rank()}")
+).to("cuda")
 
 from para_attn.context_parallel import init_context_parallel_mesh
 from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
@@ -277,4 +278,13 @@ We save the above code to `run_hunyuan_video.py` and run it with `torchrun`:
 torchrun --nproc_per_node=8 run_hunyuan_video.py
 ```
 
-With 8 NVIDIA H800 GPUs, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
+With 8 NVIDIA H800 NVLink GPUs, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
+
+## Conclusion
+
+| GPU Type | Number of GPUs | Inference Time | Speedup |
+| - | - | - | - |
+| NVIDIA H800 NVLink | 1 | xx | 1x |
+| NVIDIA H800 NVLink | 8 | xx | xx |
+| NVIDIA L20 | 1 | xx | 1x |
+| NVIDIA L20 | 8 | xx | xx |

@@ -160,10 +160,12 @@ from diffusers import AutoencoderKL
 
 dist.init_process_group()
 
+torch.cuda.set_device(dist.get_rank())
+
 vae = AutoencoderKL.from_pretrained(
     "black-forest-labs/FLUX.1-dev",
     torch_dtype=torch.bfloat16,
-).to(f"cuda:{dist.get_rank()}")
+).to("cuda")
 
 from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
 

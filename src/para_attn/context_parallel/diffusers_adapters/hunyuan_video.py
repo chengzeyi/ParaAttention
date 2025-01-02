@@ -72,6 +72,7 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
 
         world_size = DP.get_world_size(seq_mesh)
 
+        temb = DP.get_assigned_chunk(temb, dim=0, group=batch_mesh)
         hidden_states = DP.get_assigned_chunk(hidden_states, dim=0, group=batch_mesh)
         hidden_states = DP.get_assigned_chunk(hidden_states, dim=-2, group=seq_mesh)
         encoder_hidden_states = DP.get_assigned_chunk(encoder_hidden_states, dim=0, group=batch_mesh)
@@ -177,8 +178,7 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
 
         return Transformer2DModelOutput(sample=hidden_states)
 
-    new_forward = new_forward.__get__(transformer)
-    transformer.forward = new_forward
+    transformer.forward = new_forward.__get__(transformer)
 
     transformer._is_parallelized = True
 
@@ -203,9 +203,9 @@ def parallelize_pipe(pipe: DiffusionPipeline, *, shallow_patch: bool = False, **
                 generator = torch.Generator(self.device).manual_seed(seed)
             return original_call(self, *args, generator=generator, **kwargs)
 
-        new_call._is_parallelized = True
-
         pipe.__class__.__call__ = new_call
+
+        new_call._is_parallelized = True
 
     if not shallow_patch:
         parallelize_transformer(pipe.transformer, **kwargs)

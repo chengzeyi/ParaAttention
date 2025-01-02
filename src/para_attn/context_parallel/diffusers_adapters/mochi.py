@@ -56,8 +56,7 @@ def parallelize_transformer(transformer: MochiTransformer3DModel, *, mesh=None):
             return output.__class__(sample, *output[1:])
         return (sample, *output[1:])
 
-    new_forward = new_forward.__get__(transformer)
-    transformer.forward = new_forward
+    transformer.forward = new_forward.__get__(transformer)
 
     original_time_embed_forward = transformer.time_embed.forward
 
@@ -79,8 +78,7 @@ def parallelize_transformer(transformer: MochiTransformer3DModel, *, mesh=None):
         caption_proj = DP.get_assigned_chunk(caption_proj, dim=-2, group=seq_mesh)
         return conditioning, caption_proj
 
-    new_time_embed_forward = new_time_embed_forward.__get__(transformer.time_embed)
-    transformer.time_embed.forward = new_time_embed_forward
+    transformer.time_embed.forward = new_time_embed_forward.__get__(transformer.time_embed)
 
     original_rope_forward = transformer.rope.forward
 
@@ -113,8 +111,7 @@ def parallelize_transformer(transformer: MochiTransformer3DModel, *, mesh=None):
         rope_sin = rope_sin.reshape(-1, h, f)
         return rope_cos, rope_sin
 
-    new_rope_forward = new_rope_forward.__get__(transformer.rope)
-    transformer.rope.forward = new_rope_forward
+    transformer.rope.forward = new_rope_forward.__get__(transformer.rope)
 
     transformer._is_parallelized = True
 
@@ -139,9 +136,9 @@ def parallelize_pipe(pipe: DiffusionPipeline, *, shallow_patch: bool = False, **
                 generator = torch.Generator(self.device).manual_seed(seed)
             return original_call(self, *args, generator=generator, **kwargs)
 
-        new_call._is_parallelized = True
-
         pipe.__class__.__call__ = new_call
+
+        new_call._is_parallelized = True
 
     if not shallow_patch:
         parallelize_transformer(pipe.transformer, **kwargs)

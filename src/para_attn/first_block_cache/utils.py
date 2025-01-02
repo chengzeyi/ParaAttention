@@ -64,8 +64,8 @@ def cache_context(cache_context):
 
 @torch.compiler.disable()
 def are_two_tensors_similar(t1, t2, *, threshold):
-    diff = (t1 - t2).abs().mean().item() / t1.abs().mean().item()
-    return diff < threshold
+    diff = (t1 - t2).abs().mean() / t1.abs().mean()
+    return diff.item() < threshold
 
 
 class CachedTransformerBlocks(torch.nn.Module):
@@ -113,16 +113,20 @@ class CachedTransformerBlocks(torch.nn.Module):
         if not self.return_hidden_states_first:
             hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
         first_hidden_states_residual = hidden_states - original_hidden_states
+
+        torch._dynamo.graph_break()
         prev_first_hidden_states_residual = cache_context.get_buffer("first_hidden_states_residual")
         can_use_cache = prev_first_hidden_states_residual is not None and are_two_tensors_similar(
             prev_first_hidden_states_residual, first_hidden_states_residual, threshold=self.residual_diff_threshold
         )
+        torch._dynamo.graph_break()
 
         if self.transformer is not None and getattr(self.transformer, "_is_parallelized", False):
             can_use_cache_t = torch.full([1], can_use_cache, dtype=torch.bool, device=hidden_states.device)
             can_use_cache_t = DP.get_complete_tensor(can_use_cache_t, dim=0)
             can_use_cache = can_use_cache_t.all().item()
 
+        torch._dynamo.graph_break()
         if can_use_cache:
             hidden_states_residual = cache_context.get_buffer("hidden_states_residual")
             assert hidden_states_residual is not None, "hidden_states_residual must be set before"
@@ -139,6 +143,7 @@ class CachedTransformerBlocks(torch.nn.Module):
                 hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :]
             hidden_states_residual = hidden_states - original_hidden_states
             cache_context.set_buffer("hidden_states_residual", hidden_states_residual)
+        torch._dynamo.graph_break()
 
         cache_context.set_buffer("first_hidden_states_residual", first_hidden_states_residual)
         return (

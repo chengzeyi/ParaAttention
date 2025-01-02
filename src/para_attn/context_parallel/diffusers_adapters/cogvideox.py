@@ -69,8 +69,7 @@ def parallelize_transformer(transformer: CogVideoXTransformer3DModel, *, mesh=No
             return output.__class__(sample, *output[1:])
         return (sample, *output[1:])
 
-    new_forward = new_forward.__get__(transformer)
-    transformer.forward = new_forward
+    transformer.forward = new_forward.__get__(transformer)
 
     original_patch_embed_forward = transformer.patch_embed.forward
 
@@ -104,8 +103,7 @@ def parallelize_transformer(transformer: CogVideoXTransformer3DModel, *, mesh=No
 
         return embeds
 
-    new_patch_embed_forward = new_patch_embed_forward.__get__(transformer.patch_embed)
-    transformer.patch_embed.forward = new_patch_embed_forward
+    transformer.patch_embed.forward = new_patch_embed_forward.__get__(transformer)
 
     transformer._is_parallelized = True
 
@@ -130,9 +128,9 @@ def parallelize_pipe(pipe: DiffusionPipeline, *, shallow_patch: bool = False, **
                 generator = torch.Generator(self.device).manual_seed(seed)
             return original_call(self, *args, generator=generator, **kwargs)
 
-        new_call._is_parallelized = True
-
         pipe.__class__.__call__ = new_call
+
+        new_call._is_parallelized = True
 
     if not shallow_patch:
         parallelize_transformer(pipe.transformer, **kwargs)

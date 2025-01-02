@@ -27,7 +27,7 @@ def apply_cache_on_transformer(
 
     original_forward = transformer.forward
 
-    @functools.wraps(transformer.__class__.forward)
+    @functools.wraps(original_forward)
     def new_forward(
         self,
         *args,
@@ -47,8 +47,7 @@ def apply_cache_on_transformer(
                 **kwargs,
             )
 
-    new_forward = new_forward.__get__(transformer)
-    transformer.forward = new_forward
+    transformer.forward = new_forward.__get__(transformer)
 
     return transformer
 
@@ -68,9 +67,9 @@ def apply_cache_on_pipe(
             with utils.cache_context(utils.create_cache_context()):
                 return original_call(self, *args, **kwargs)
 
-        new_call._is_cached = True
-
         pipe.__class__.__call__ = new_call
+
+        new_call._is_cached = True
 
     if not shallow_patch:
         apply_cache_on_transformer(pipe.transformer, **kwargs)

@@ -119,6 +119,8 @@ def apply_cache_on_transformer(
 
                 return Transformer2DModelOutput(sample=hidden_states)
 
+    transformer.forward = new_forward.__get__(transformer)
+
     def call_transformer_blocks(self, hidden_states, encoder_hidden_states, temb, guidance, image_rotary_emb):
         # 4. Transformer blocks
         if torch.is_grad_enabled() and self.gradient_checkpointing:
@@ -169,11 +171,7 @@ def apply_cache_on_transformer(
 
         return hidden_states, encoder_hidden_states
 
-    call_transformer_blocks = call_transformer_blocks.__get__(transformer)
-    transformer.call_transformer_blocks = call_transformer_blocks
-
-    new_forward = new_forward.__get__(transformer)
-    transformer.forward = new_forward
+    transformer.call_transformer_blocks = call_transformer_blocks.__get__(transformer)
 
     return transformer
 
@@ -193,9 +191,9 @@ def apply_cache_on_pipe(
             with utils.cache_context(utils.create_cache_context()):
                 return original_call(self, *args, **kwargs)
 
-        new_call._is_cached = True
-
         pipe.__class__.__call__ = new_call
+
+        new_call._is_cached = True
 
     if not shallow_patch:
         apply_cache_on_transformer(pipe.transformer, **kwargs)
