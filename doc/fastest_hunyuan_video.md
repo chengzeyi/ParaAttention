@@ -115,9 +115,13 @@ To apply the first block cache on HunyuanVideo, we can call `apply_cache_on_pipe
 apply_cache_on_pipe(pipe, residual_diff_threshold=0.035)
 ```
 
-| HunyuanVideo without FBC | HunyuanVideo with FBC |
-| - | - |
-| https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713 | https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40 |
+### HunyuanVideo without FBC
+
+https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713
+
+### HunyuanVideo with FBC
+
+https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40
 
 We observe that the first block cache is very effective in speeding up the inference, and maintaining nearly no quality loss in the generated video.
 Now, on one single NVIDIA L20 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
