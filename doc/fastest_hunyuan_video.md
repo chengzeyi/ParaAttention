@@ -115,6 +115,10 @@ To apply the first block cache on HunyuanVideo, we can call `apply_cache_on_pipe
 apply_cache_on_pipe(pipe, residual_diff_threshold=0.035)
 ```
 
+| HunyuanVideo without FBC | HunyuanVideo with FBC |
+| - | - |
+| ![original](../assets/hunyuan_video_original.mp4) | ![fbc](../assets/hunyuan_video_fbc.mp4) |
+
 We observe that the first block cache is very effective in speeding up the inference, and maintaining nearly no quality loss in the generated video.
 Now, on one single NVIDIA L20 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
 
@@ -172,6 +176,7 @@ pipe.transformer = torch.compile(
 )
 
 pipe.vae.enable_tiling()
+# pipe.enable_model_cpu_offload()
 
 for i in range(2):
     begin = time.time()
@@ -263,6 +268,7 @@ pipe.transformer = torch.compile(
 )
 
 pipe.vae.enable_tiling()
+# pipe.enable_model_cpu_offload(gpu_id=dist.get_rank())
 
 for i in range(2):
     begin = time.time()

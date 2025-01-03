@@ -31,7 +31,12 @@ We also provide a unified interface to parallelize the model inference.
 ### First Block Cache (Our Dynamic Caching)
 
 Inspired by [TeaCache](https://github.com/ali-vilab/TeaCache) and other denoising caching algorithms, we introduce **First Block Cache** (FBC) to use the residual output of the first transformer block as the cache indicator.
-This allows us to reuse the output of the transformer blocks in the previous inference steps, which can significantly reduce the computation cost of the model, achieving a speedup of up to 2x while maintaining high accuracy.
+If the difference between the current and the previous residual output of the first transformer block is small enough, we can reuse the previous final residual output and skip the computation of all the following transformer blocks.
+This can significantly reduce the computation cost of the model, achieving a speedup of up to 2x while maintaining high accuracy.
+
+| HunyuanVideo without FBC | HunyuanVideo with FBC |
+| - | - |
+| ![original](./assets/hunyuan_video_original.mp4) | ![fbc](./assets/hunyuan_video_fbc.mp4) |
 
 # Officially Supported Models
 

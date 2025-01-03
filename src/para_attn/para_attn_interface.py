@@ -146,6 +146,7 @@ class RingAttnFunc(torch.autograd.Function):
                 is_causal=is_causal,
                 scale=scale,
             )
+        out = out.to(query.dtype)
         return out
 
     @staticmethod

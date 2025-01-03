@@ -87,6 +87,13 @@ def all_to_all_single_autograd_sync(x, *args, **kwargs):
     return x
 
 
+def all_reduce_sync(x, *args, group=None, **kwargs):
+    group = get_group(group)
+    x = ft_c.all_reduce(x, *args, group=group, **kwargs)
+    x = _maybe_wait(x)
+    return x
+
+
 def get_buffer(
     shape_or_tensor: Union[Tuple[int], torch.Tensor],
     *,

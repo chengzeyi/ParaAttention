@@ -110,6 +110,8 @@ def apply_cache_on_transformer(
                 hidden_states = hidden_states.permute(0, 4, 1, 5, 2, 6, 3, 7)
                 hidden_states = hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
 
+                hidden_states = hidden_states.to(timestep.dtype)
+
                 if USE_PEFT_BACKEND:
                     # remove `lora_scale` from each PEFT layer
                     unscale_lora_layers(self, lora_scale)

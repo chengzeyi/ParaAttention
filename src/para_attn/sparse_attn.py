@@ -273,7 +273,9 @@ class StructuredSparseAttnFunc(torch.autograd.Function):
                 )
             )
 
-        return torch.cat(output, dim=2)
+        output = torch.cat(output, dim=2)
+        output = output.to(query.dtype)
+        return output
 
     @staticmethod
     def backward(ctx, dout, *args):
@@ -562,7 +564,9 @@ class FocusAttnFunc(torch.autograd.Function):
                 )
             )
 
-        return torch.cat(output, dim=2)
+        output = torch.cat(output, dim=2)
+        output = output.to(query.dtype)
+        return output
 
     @staticmethod
     def backward(ctx, dout, *args):
