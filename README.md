@@ -28,15 +28,34 @@ In `ParaAttention`, we are able to parallelize the attention layer with a mixtur
 This allows us to achieve the best performance with different models and different hardware configurations.
 We also provide a unified interface to parallelize the model inference.
 
+You only need to call a single function to enable context parallelism on your `diffusers` pipeline:
+
+```python
+from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
+
+parallelize_pipe(pipe)
+```
+
 ### First Block Cache (Our Dynamic Caching)
 
 Inspired by [TeaCache](https://github.com/ali-vilab/TeaCache) and other denoising caching algorithms, we introduce **First Block Cache** (FBC) to use the residual output of the first transformer block as the cache indicator.
 If the difference between the current and the previous residual output of the first transformer block is small enough, we can reuse the previous final residual output and skip the computation of all the following transformer blocks.
 This can significantly reduce the computation cost of the model, achieving a speedup of up to 2x while maintaining high accuracy.
 
-| HunyuanVideo without FBC | HunyuanVideo with FBC |
-| - | - |
-| [Original](https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713) | [FBC](https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40) |
+| Model | Optimizations | Preview |
+| - | - | - |
+| HunyuanVideo | Original | [Original](https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713) |
+| HunyuanVideo | FBC | [FBC](https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40) |
+| FLUX.1-dev | Original | ![Original](./assets/flux_original.png) |
+| FLUX.1-dev | FBC | ![FBC](./assets/flux_fbc.png) |
+
+You only need to call a single function to enable First Block Cache on your `diffusers` pipeline:
+
+```python
+from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
+
+apply_cache_on_pipe(pipe)
+```
 
 # Officially Supported Models
 
