@@ -1,5 +1,7 @@
 # Fastest HunyuanVideo Inference with Context Parallelism and First Block Cache on NVIDIA L20 GPUs
 
+[![](https://mermaid.ink/img/pako:eNptktuK2zAQhl9lEIS01HZsOXEcXxT20NKFtgQKW-hqLxR7YglsKcjyNt7gd-84abcHKhBoPmk0p__ESlshK1gYhsKU1ux1XQgDtI7DjZLO_7Sm9V1XXhWQJHH8GyrUtfIF8BXB8y-z2UkbTeg09wpbnBcw31uHnZ-PMM5mwhyHcvo63KGXoKzTz9Z42QjjtW8QBPsqmwa8bhHIEWo06KTXpgZrEJ50hZaS8Qo-9NIMtO8nFEDC8_i45vEx4ZsA0hg6j4cuIC_4fH93e3cFH3kcXFy30skr75FiWiMYJRXKo-7gQbBr2WGjDQoWUC7vr29kqf424A3cbF_x1_-By19w-wfMCT4KM1xCCNYhtbrqBIMYwvAtZKuppcLspIOHLF6mUZ4HwPk6ieKM6kpSHm0o83WSR8kqgGy5iXj6yALWomulrmiCp2kmgp1bLlhBxx3VMVU20jvZe_tlMCUrvOsxYM72tWLFXjYdWf2hkh5vtaydbF_oQZpv1rb_vHpXaW_dC2ysrJDME_PDYVJSrTtPAS9amnjvGsLK-0NXLBbTdVTTBPpdVNp20elq0oJ62mSLjGe55Clm61Su0rQqd8km3_Nlsq_WccIlG8eA4Tn-p4tsz-odfwBIt9yD?type=png)](https://mermaid.live/edit#pako:eNptktuK2zAQhl9lEIS01HZsOXEcXxT20NKFtgQKW-hqLxR7YglsKcjyNt7gd-84abcHKhBoPmk0p__ESlshK1gYhsKU1ux1XQgDtI7DjZLO_7Sm9V1XXhWQJHH8GyrUtfIF8BXB8y-z2UkbTeg09wpbnBcw31uHnZ-PMM5mwhyHcvo63KGXoKzTz9Z42QjjtW8QBPsqmwa8bhHIEWo06KTXpgZrEJ50hZaS8Qo-9NIMtO8nFEDC8_i45vEx4ZsA0hg6j4cuIC_4fH93e3cFH3kcXFy30skr75FiWiMYJRXKo-7gQbBr2WGjDQoWUC7vr29kqf424A3cbF_x1_-By19w-wfMCT4KM1xCCNYhtbrqBIMYwvAtZKuppcLspIOHLF6mUZ4HwPk6ieKM6kpSHm0o83WSR8kqgGy5iXj6yALWomulrmiCp2kmgp1bLlhBxx3VMVU20jvZe_tlMCUrvOsxYM72tWLFXjYdWf2hkh5vtaydbF_oQZpv1rb_vHpXaW_dC2ysrJDME_PDYVJSrTtPAS9amnjvGsLK-0NXLBbTdVTTBPpdVNp20elq0oJ62mSLjGe55Clm61Su0rQqd8km3_Nlsq_WccIlG8eA4Tn-p4tsz-odfwBIt9yD)
+
 ## Introduction
 
 During the past year, we have seen the rapid development of video generation models with the release of several open-source models, such as [HunyuanVideo](https://huggingface.co/tencent/HunyuanVideo), [CogVideoX](https://huggingface.co/THUDM/CogVideoX-5b) and [Mochi](https://huggingface.co/genmo/mochi-1-preview).
@@ -9,8 +11,8 @@ However, the inference speed of these models is still a bottleneck for real-time
 In this article, we will use [ParaAttention](https://github.com/chengzeyi/ParaAttention), a library implements **Context Parallelism** and **First Block Cache**, as well as other techniques like `torch.compile` and **FP8 Dynamic Quantization**, to achieve the fastest inference speed for HunyuanVideo.
 If you want to speed up other models like `CogVideoX`, `Mochi` or `FLUX`, you can also follow the same steps in this article.
 
-We set up our experiments on NVIDIA L20 GPUs, which only has PCIe support.
-If you have NVIDIA A100 or H100 GPUs with NVLink support, you can achieve a better speedup with context parallelism.
+**We set up our experiments on NVIDIA L20 GPUs, which only has PCIe support.**
+**If you have NVIDIA A100 or H100 GPUs with NVLink support, you can achieve a better speedup with context parallelism, especially when the number of GPUs is large.**
 
 ## HunyuanVideo Inference with `diffusers`
 
@@ -102,7 +104,7 @@ And [AdaCache](https://adacache-dit.github.io) also shows that caching can contr
 However, TeaCache is still a bit complex as it needs a rescaling strategy to ensure the accuracy of the cache.
 In ParaAttention, we find that we can directly use **the residual difference of the first transformer block output** to approximate the difference among model outputs.
 When the difference is small enough, we can reuse the residual difference of previous inference steps, meaning that we in fact skip this denoising step.
-This has been proved to be effective in our experiments and we achieve a nearly 2x speedup on HunyuanVideo inference with very good quality.
+This has been proved to be effective in our experiments and we achieve a 1.5x-3x speedup on HunyuanVideo inference with very good quality.
 
 <figure>
     <img src="https://adacache-dit.github.io/clarity/images/adacache.png" alt="Cache in Diffusion Transformer" />
@@ -115,16 +117,16 @@ To apply the first block cache on HunyuanVideo, we can call `apply_cache_on_pipe
 apply_cache_on_pipe(pipe, residual_diff_threshold=0.035)
 ```
 
-### HunyuanVideo without FBC
+### HunyuanVideo without FBCache
 
 https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713
 
-### HunyuanVideo with FBC
+### HunyuanVideo with FBCache
 
 https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40
 
 We observe that the first block cache is very effective in speeding up the inference, and maintaining nearly no quality loss in the generated video.
-Now, on one single NVIDIA L20 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in xx seconds. This is a xx speedup compared to the base line.
+Now, on one single NVIDIA L20 GPU, we can generate 129 frames with 720p resolution in 30 inference steps in 2271.06 seconds. This is a 2.66x speedup compared to the base line.
 
 ## Quantize the model into FP8
 
@@ -201,8 +203,13 @@ print("Saving video to hunyuan_video.mp4")
 export_to_video(output, "hunyuan_video.mp4", fps=15)
 ```
 
-We can see that dynamic quantization is very effective in speeding up the inference.
-We now achieve a xx speedup compared to the base line.
+The NVIDIA L20 GPU only has 48GB memory and could face OOM errors after compiling the model and not calling `enable_model_cpu_offload`,
+because the HunyuanVideo has very large activation tensors when running with high resolution and large number of frames.
+So here we skip measuring the speedup with quantization and compilation on one single NVIDIA L20 GPU and choose to use context parallelism to release the memory pressure.
+If you want to run HunyuanVideo with `torch.compile` on GPUs with less than 80GB memory, you can try reducing the resolution and the number of frames to avoid OOM errors.
+
+Due to the fact that large video generation models usually have performance bottleneck on the attention computation rather than the fully connected layers, we don't observe a significant speedup with quantization and compilation.
+However, models like `FLUX` and `SD3` can benefit a lot from quantization and compilation, it is suggested to try it for these models.
 
 ## Parallelize the inference with Context Parallelism
 
@@ -261,15 +268,15 @@ from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
 
 apply_cache_on_pipe(pipe)
 
-from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
-
-torch._inductor.config.reorder_for_compute_comm_overlap = True
-
-quantize_(pipe.text_encoder, float8_weight_only())
-quantize_(pipe.transformer, float8_dynamic_activation_float8_weight())
-pipe.transformer = torch.compile(
-   pipe.transformer, mode="max-autotune-no-cudagraphs",
-)
+# from torchao.quantization import quantize_, float8_dynamic_activation_float8_weight, float8_weight_only
+#
+# torch._inductor.config.reorder_for_compute_comm_overlap = True
+#
+# quantize_(pipe.text_encoder, float8_weight_only())
+# quantize_(pipe.transformer, float8_dynamic_activation_float8_weight())
+# pipe.transformer = torch.compile(
+#    pipe.transformer, mode="max-autotune-no-cudagraphs",
+# )
 
 pipe.vae.enable_tiling()
 # pipe.enable_model_cpu_offload(gpu_id=dist.get_rank())
@@ -304,14 +311,14 @@ We save the above code to `run_hunyuan_video.py` and run it with `torchrun`:
 torchrun --nproc_per_node=8 run_hunyuan_video.py
 ```
 
-With 8 NVIDIA L20 GPUs, we can generate 129 frames with 720p resolution in 30 inference steps in 786.97 seconds. This is a 7.68x speedup compared to the base line!
+With 8 NVIDIA L20 GPUs, we can generate 129 frames with 720p resolution in 30 inference steps in 649.23 seconds. This is a 9.31x speedup compared to the base line!
 
 ## Conclusion
 
 | GPU Type | Number of GPUs | Optimizations | Inference Time (s) | Speedup |
 | - | - | - | - | - |
 | NVIDIA L20 | 1 | Baseline | 6043.88 | 1x |
-| NVIDIA L20 | 1 | FBC | 2271.06 | 2.66x |
-| NVIDIA L20 | 1 | FBC + FP8 + Compile | 2334.38 | 2.59x |
-| NVIDIA L20 | 2 | FBC + FP8 + Compile + CP | 1293.6 | 4.67x |
-| NVIDIA L20 | 8 | FBC + FP8 + Compile + CP | 786.97 | 7.68x |
+| NVIDIA L20 | 1 | FBCache | 2271.06 | 2.66x |
+| NVIDIA L20 | 2 | FBCache + CP | 1132.90 | 5.33x |
+| NVIDIA L20 | 4 | FBCache + CP | 718.15 | 8.42x |
+| NVIDIA L20 | 8 | FBCache + CP | 649.23 | 9.31x |
