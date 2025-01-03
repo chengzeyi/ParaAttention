@@ -46,8 +46,8 @@ This can significantly reduce the computation cost of the model, achieving a spe
 | - | - | - |
 | HunyuanVideo | Original | [Original](https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713) |
 | HunyuanVideo | FBC | [FBC](https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40) |
-| FLUX.1-dev | Original | ![Original](./assets/flux_original.png) |
-| FLUX.1-dev | FBC | ![FBC](./assets/flux_fbc.png) |
+| FLUX.1-dev | Original | [Original](./assets/flux_original.png) |
+| FLUX.1-dev | FBC | [FBC](./assets/flux_fbc.png) |
 
 You only need to call a single function to enable First Block Cache on your `diffusers` pipeline:
 
