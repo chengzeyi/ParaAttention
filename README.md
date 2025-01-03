@@ -36,7 +36,7 @@ This can significantly reduce the computation cost of the model, achieving a spe
 
 | HunyuanVideo without FBC | HunyuanVideo with FBC |
 | - | - |
-| ![original](./assets/hunyuan_video_original.mp4) | ![fbc](./assets/hunyuan_video_fbc.mp4) |
+| [Original](https://github.com/user-attachments/assets/883d771a-e74e-4081-aa2a-416985d6c713) | [FBC](https://github.com/user-attachments/assets/f77c2f58-2b59-4dd1-a06a-a36974cb1e40) |
 
 # Officially Supported Models
 
