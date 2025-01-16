@@ -292,6 +292,10 @@ Save the above code to `test.py` and run it with `torchrun`:
 torchrun --nproc_per_node=2 test.py
 ```
 
+## HTTP Inference Server
+ The `ParaAttentionServer` located in `src/para_attn/server` is an http server implemented in python/flask that is meant for serving a parallelized diffusion model. See [here](src/para_attn/server/README.md) for more info.
+
+
 # Run Tests
 
 ```bash
