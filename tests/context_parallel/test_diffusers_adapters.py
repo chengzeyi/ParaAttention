@@ -3,6 +3,7 @@ import contextlib
 import time
 
 import pytest
+import pytest_html
 
 import torch
 from torch.testing._internal.common_utils import instantiate_parametrized_tests, parametrize, run_tests
@@ -13,14 +14,7 @@ class DiffusionPipelineTest(DTensorTestBase):
     @property
     def world_size(self):
         device_count = torch.cuda.device_count()
-        if device_count <= 4:
-            return device_count
-        elif device_count < 6:
-            return 4
-        elif device_count < 8:
-            return 6
-        else:
-            return 8
+        return device_count
 
     def mesh(self, device, use_batch, use_ring):
         from para_attn.context_parallel import init_context_parallel_mesh
@@ -39,7 +33,7 @@ class DiffusionPipelineTest(DTensorTestBase):
     def new_pipe(self, dtype, device, rank):
         raise NotImplementedError
 
-    def call_pipe(self, pipe, *args, **kwargs):
+    def call_pipe(self, pipe, **kwargs):
         raise NotImplementedError
 
     @property
@@ -70,12 +64,22 @@ class DiffusionPipelineTest(DTensorTestBase):
                 # after the last iteration.
                 pipe.transformer = torch.compile(pipe.transformer, mode="max-autotune-no-cudagraphs")
 
-            for _ in range(2):
+            for i in range(2):
+                call_kwargs = {}
+                if i == 0:
+                    call_kwargs["num_inference_steps"] = 1
                 begin = time.time()
-                self.call_pipe(pipe)
+                output = self.call_pipe(pipe, **call_kwargs)
                 end = time.time()
-                print(f"Time taken: {end - begin:.3f} seconds")
-
+                msg = f"{'Warm-up' if i == 0 else 'Inference'} time taken: {end - begin:.3f} seconds"
+                if self.rank == 0:
+                    print(msg)
+                    if i != 0:
+                        if hasattr(output, "images"):
+                            image = output.images[0]
+                        elif hasattr(output, "frames"):
+                            video = output.frames[0]
+                            image = video[0]
 
 class FluxPipelineTest(DiffusionPipelineTest):
     def new_pipe(self, dtype, device):
@@ -87,11 +91,13 @@ class FluxPipelineTest(DiffusionPipelineTest):
         ).to(f"{device}:{self.rank}")
         return pipe
 
-    def call_pipe(self, pipe, *args, **kwargs):
+    def call_pipe(self, pipe, **kwargs):
+        if "num_inference_steps" not in kwargs:
+            kwargs["num_inference_steps"] = 28
         return pipe(
             "A cat holding a sign that says hello world",
-            num_inference_steps=28,
             output_type="pil" if self.rank == 0 else "pt",
+            **kwargs,
         )
 
     @property
@@ -126,11 +132,12 @@ class MochiPipelineTest(DiffusionPipelineTest):
         pipe.enable_vae_tiling()
         return pipe
 
-    def call_pipe(self, pipe, *args, **kwargs):
+    def call_pipe(self, pipe, **kwargs):
         return pipe(
             "Close-up of a chameleon's eye, with its scaly skin changing color. Ultra high resolution 4k.",
             num_frames=84,
             output_type="pil" if self.rank == 0 else "pt",
+            **kwargs,
         )
 
     @pytest.mark.skipif("not torch.cuda.is_available()")
@@ -162,15 +169,17 @@ class CogVideoXPipelineTest(DiffusionPipelineTest):
         pipe.vae.enable_tiling()
         return pipe
 
-    def call_pipe(self, pipe, *args, **kwargs):
+    def call_pipe(self, pipe, **kwargs):
+        if "num_inference_steps" not in kwargs:
+            kwargs["num_inference_steps"] = 50
         prompt = "A panda, dressed in a small, red jacket and a tiny hat, sits on a wooden stool in a serene bamboo forest. The panda's fluffy paws strum a miniature acoustic guitar, producing soft, melodic tunes. Nearby, a few other pandas gather, watching curiously and some clapping in rhythm. Sunlight filters through the tall bamboo, casting a gentle glow on the scene. The panda's face is expressive, showing concentration and joy as it plays. The background includes a small, flowing stream and vibrant green foliage, enhancing the peaceful and magical atmosphere of this unique musical performance."
         return pipe(
             prompt=prompt,
             num_videos_per_prompt=1,
-            num_inference_steps=50,
             num_frames=49,
             guidance_scale=6,
             output_type="pil" if self.rank == 0 else "pt",
+            **kwargs,
         )
 
     @pytest.mark.skipif("not torch.cuda.is_available()")
@@ -228,14 +237,16 @@ class HunyuanVideoPipelineTest(DiffusionPipelineTest):
 
         return pipe
 
-    def call_pipe(self, pipe, *args, **kwargs):
+    def call_pipe(self, pipe, **kwargs):
+        if "num_inference_steps" not in kwargs:
+            kwargs["num_inference_steps"] = 30
         return pipe(
             prompt="A cat walks on the grass, realistic",
             height=720,
             width=1280,
             num_frames=129,
-            num_inference_steps=30,
             output_type="pil" if self.rank == 0 else "pt",
+            **kwargs,
         )
 
     @property

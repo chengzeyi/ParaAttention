@@ -14,7 +14,7 @@ class attention:
     # https://github.com/pytorch/pytorch/blob/8dd380803c0e25786cba12801088c420a2ca071b/torch/_inductor/lowering.py#L2450
     force_dispatch_to_custom_ops = os.getenv("PARA_ATTN_FORCE_DISPATCH_TO_CUSTOM_OPS") == "1"
 
-    allow_reduced_precision_compute = os.getenv("PARA_ATTN_ALLOW_REDUCED_PRECISION_COMPUTE") == "1"
+    allow_reduced_precision_reduction = os.getenv("PARA_ATTN_ALLOW_REDUCED_PRECISION_REDUCTION") == "1"
 
     # fast_math = os.getenv("PARA_ATTN_FAST_MATH") == "1"
 

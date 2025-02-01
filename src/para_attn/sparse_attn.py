@@ -172,7 +172,7 @@ class StructuredSparseAttnFunc(torch.autograd.Function):
 
         if query_mid.numel() > 0:
             sdpa_merger = torch_ring_attention._SDPAMerger(
-                not para_attn.config.attention.allow_reduced_precision_compute
+                not para_attn.config.attention.allow_reduced_precision_reduction
             )
 
             if key_left.numel() > 0:
@@ -210,7 +210,7 @@ class StructuredSparseAttnFunc(torch.autograd.Function):
                     zip(sparse_mask, query_mid.chunk(sparse_mask.shape[0], dim=2))
                 ):
                     sub_sdpa_merger = torch_ring_attention._SDPAMerger(
-                        not para_attn.config.attention.allow_reduced_precision_compute
+                        not para_attn.config.attention.allow_reduced_precision_reduction
                     )
                     start = 0
                     while start < mask_row.shape[0]:
@@ -413,7 +413,7 @@ class FocusAttnFunc(torch.autograd.Function):
 
         if query_mid.numel() > 0:
             sdpa_merger = torch_ring_attention._SDPAMerger(
-                not para_attn.config.attention.allow_reduced_precision_compute
+                not para_attn.config.attention.allow_reduced_precision_reduction
             )
 
             if key_left.numel() > 0:
@@ -465,7 +465,7 @@ class FocusAttnFunc(torch.autograd.Function):
                     zip(focus_mask, query_mid.chunk(focus_mask.shape[0], dim=2))
                 ):
                     sub_sdpa_merger = torch_ring_attention._SDPAMerger(
-                        not para_attn.config.attention.allow_reduced_precision_compute
+                        not para_attn.config.attention.allow_reduced_precision_reduction
                     )
                     start = 0
                     while start < mask_row.shape[0]:
