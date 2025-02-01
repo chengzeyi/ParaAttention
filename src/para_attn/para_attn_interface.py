@@ -1,10 +1,10 @@
 import contextlib
 import unittest
-from packaging import version
 
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+from packaging import version
 from torch.overrides import TorchFunctionMode
 
 import para_attn
@@ -136,16 +136,22 @@ class RingAttnFunc(torch.autograd.Function):
             patch_cp_options_enable_load_balance = contextlib.nullcontext()
         else:
             patch_cp_options_convert_to_f32 = unittest.mock.patch.object(
-                cp_options, "convert_to_f32", not para_attn.config.attention.allow_reduced_precision_reduction, create=True,
+                cp_options,
+                "convert_to_f32",
+                not para_attn.config.attention.allow_reduced_precision_compute,
+                create=True,
             )
             patch_cp_options_enable_load_balance = unittest.mock.patch.object(
-                cp_options, "enable_load_balance", is_causal, create=True,
+                cp_options,
+                "enable_load_balance",
+                is_causal,
+                create=True,
             )
 
         with unittest.mock.patch.object(
             torch_ring_attention,
             "_convert_to_f32",
-            not para_attn.config.attention.allow_reduced_precision_reduction,
+            not para_attn.config.attention.allow_reduced_precision_compute,
             create=True,
         ), patch_cp_options_convert_to_f32, patch_cp_options_enable_load_balance:
             seq_dim_args = []

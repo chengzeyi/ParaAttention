@@ -295,5 +295,5 @@ torchrun --nproc_per_node=2 test.py
 # Run Tests
 
 ```bash
-DISTRIBUTED_TESTS_DEFAULT_TIMEOUT=3000 pytest tests
+pytest tests --html=report.html --self-contained-html
 ```
