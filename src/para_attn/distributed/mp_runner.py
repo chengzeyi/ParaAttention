@@ -1,9 +1,7 @@
 import contextlib
 import os
-import sys
 import pickle
 import socket
-import signal
 import threading
 import time
 import traceback
@@ -12,8 +10,10 @@ from multiprocessing.reduction import ForkingPickler
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+
 class ExceptionOutput(Exception):
     pass
+
 
 class MPDistRunner:
     def __init__(self, *, rank=None, persist_attrs=None, temp_attrs=None):
@@ -224,7 +224,17 @@ class MPDistRunner:
 
     @classmethod
     def worker(
-        cls, runner, args, kwargs, barrier, array_size, shared_array, input_queue, output_queue, exception_queue, status,
+        cls,
+        runner,
+        args,
+        kwargs,
+        barrier,
+        array_size,
+        shared_array,
+        input_queue,
+        output_queue,
+        exception_queue,
+        status,
     ):
         runner.init_process_group()
 

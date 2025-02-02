@@ -1,10 +1,11 @@
-import pytest
-import pytest_html
+import base64
 
 import contextlib
-import time
 import io
-import base64
+import time
+
+import pytest
+import pytest_html
 
 import torch
 
@@ -93,7 +94,7 @@ class DiffusionPipelineRunner(MPDistRunner):
                     elif hasattr(output, "frames"):
                         video = output.frames[0]
                         output_image = video[0]
-            
+
             return output_image, warmup_time, inference_time
 
     def process_task(self, *args, **kwargs):
@@ -312,8 +313,8 @@ class FluxPipelineMPDistRunner(MPDistRunner):
         return min(2, torch.cuda.device_count())
 
     def init_processor(self):
-        from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
         from para_attn.context_parallel import init_context_parallel_mesh
+        from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
         from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
 
         with torch.cuda.device(self.rank):
