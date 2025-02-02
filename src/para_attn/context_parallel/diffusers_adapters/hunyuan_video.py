@@ -140,8 +140,7 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
 
     transformer.forward = new_forward.__get__(transformer)
 
-    def call_transformer_blocks(self, hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb):
-        # 4. Transformer blocks
+    def call_transformer_blocks(self, hidden_states, encoder_hidden_states, *args, **kwargs):
         if torch.is_grad_enabled() and self.gradient_checkpointing:
 
             def create_custom_forward(module, return_dict=None):
@@ -160,9 +159,8 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
                     create_custom_forward(block),
                     hidden_states,
                     encoder_hidden_states,
-                    temb,
-                    attention_mask,
-                    image_rotary_emb,
+                    *args,
+                    **kwargs,
                     **ckpt_kwargs,
                 )
 
@@ -171,22 +169,17 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
                     create_custom_forward(block),
                     hidden_states,
                     encoder_hidden_states,
-                    temb,
-                    attention_mask,
-                    image_rotary_emb,
+                    *args,
+                    **kwargs,
                     **ckpt_kwargs,
                 )
 
         else:
             for block in self.transformer_blocks:
-                hidden_states, encoder_hidden_states = block(
-                    hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
-                )
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
 
             for block in self.single_transformer_blocks:
-                hidden_states, encoder_hidden_states = block(
-                    hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
-                )
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
 
         return hidden_states, encoder_hidden_states
 

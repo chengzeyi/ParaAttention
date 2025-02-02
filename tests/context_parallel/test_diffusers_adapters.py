@@ -1,11 +1,10 @@
-import base64
-
-import contextlib
-import io
-import time
-
 import pytest
 import pytest_html
+
+import contextlib
+import time
+import io
+import base64
 
 import torch
 
@@ -94,7 +93,7 @@ class DiffusionPipelineRunner(MPDistRunner):
                     elif hasattr(output, "frames"):
                         video = output.frames[0]
                         output_image = video[0]
-
+            
             return output_image, warmup_time, inference_time
 
     def process_task(self, *args, **kwargs):
@@ -171,6 +170,9 @@ class TestMochiPipeline(_TestDiffusionPipeline):
             return pipe
 
         def call_pipe(self, pipe, **kwargs):
+            num_inference_steps = kwargs.get("num_inference_steps")
+            if num_inference_steps is not None:
+                kwargs["num_inference_steps"] = max(2, num_inference_steps)
             return pipe(
                 "Close-up of a chameleon's eye, with its scaly skin changing color. Ultra high resolution 4k.",
                 num_frames=84,
@@ -234,7 +236,7 @@ class TestCogVideoXPipeline(_TestDiffusionPipeline):
         super().test_benchmark_pipe(extras, dtype, device, parallelize, compile, use_batch, use_ring)
 
 
-class HunyuanVideoPipelineTest(_TestDiffusionPipeline):
+class TestHunyuanVideoPipeline(_TestDiffusionPipeline):
     class Runner(DiffusionPipelineRunner):
         def new_pipe(self, dtype, device):
             from diffusers import HunyuanVideoPipeline, HunyuanVideoTransformer3DModel
@@ -302,3 +304,57 @@ class HunyuanVideoPipelineTest(_TestDiffusionPipeline):
     )
     def test_benchmark_pipe(self, extras, dtype, device, parallelize, compile, use_batch, use_ring):
         super().test_benchmark_pipe(extras, dtype, device, parallelize, compile, use_batch, use_ring)
+
+
+class FluxPipelineMPDistRunner(MPDistRunner):
+    @property
+    def world_size(self):
+        return min(2, torch.cuda.device_count())
+
+    def init_processor(self):
+        from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
+        from para_attn.context_parallel import init_context_parallel_mesh
+        from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
+
+        with torch.cuda.device(self.rank):
+            from diffusers import FluxPipeline
+
+            pipe = FluxPipeline.from_pretrained(
+                "black-forest-labs/FLUX.1-dev",
+                torch_dtype=torch.bfloat16,
+            ).to(f"cuda:{self.rank}")
+
+            mesh = init_context_parallel_mesh(
+                pipe.device.type,
+                max_ring_dim_size=2,
+            )
+            parallelize_pipe(
+                pipe,
+                mesh=mesh,
+            )
+            parallelize_vae(pipe.vae, mesh=mesh._flatten())
+
+            self.pipe = pipe
+
+    def process_task(self, *args, debug_raise_exception_processing=False, **kwargs):
+        if debug_raise_exception_processing:
+            raise RuntimeError("Debug exception")
+
+        return self.pipe(
+            "A cat holding a sign that says hello world",
+            output_type="pil" if self.rank == 0 else "pt",
+            **kwargs,
+        )
+
+
+class TestFluxPipelineMPDistRunner:
+    def test_process_with_exception(self):
+        def wrap_call(runner, *args, timeout=None, **kwargs):
+            assert runner.is_alive() and runner.is_almost_idle()
+            runner(args, kwargs, timeout=timeout)
+
+        with FluxPipelineMPDistRunner().start() as runner:
+            wrap_call(runner)
+            with pytest.raises(Exception):
+                wrap_call(runner, debug_raise_exception_processing=True)
+            wrap_call(runner)

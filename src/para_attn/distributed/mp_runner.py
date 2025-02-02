@@ -1,20 +1,24 @@
 import contextlib
 import os
+import sys
 import pickle
 import socket
+import signal
 import threading
-import traceback
 import time
+import traceback
+from multiprocessing.reduction import ForkingPickler
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from multiprocessing.reduction import ForkingPickler
 
+class ExceptionOutput(Exception):
+    pass
 
 class MPDistRunner:
-    def __init__(self, *, rank=None, persistent_attrs=None, temp_attrs=None):
+    def __init__(self, *, rank=None, persist_attrs=None, temp_attrs=None):
         self.rank = rank
-        self.persistent_attrs = persistent_attrs or {}
+        self.persist_attrs = persist_attrs or {}
         self.temp_attrs = temp_attrs or {}
 
         self.array_size = None
@@ -25,6 +29,9 @@ class MPDistRunner:
         self.lock = None
 
         self.processes = []
+
+    def __del__(self):
+        self.terminate()
 
     def __enter__(self):
         return self
@@ -45,7 +52,7 @@ class MPDistRunner:
         return 1 << 30
 
     def clone(self, *, rank=None):
-        return self.__class__(rank=rank, persistent_attrs={**self.persistent_attrs})
+        return self.__class__(rank=rank, persist_attrs={**self.persist_attrs})
 
     def init_env(self, *, master_addr=None, master_port=None):
         if master_addr is None:
@@ -108,6 +115,13 @@ class MPDistRunner:
                 processes.append(process)
 
             output_queue.get(timeout=timeout)
+            exceptions = []
+            for rank, exception_queue in enumerate(exception_queues):
+                if not exception_queue.empty():
+                    exceptions.append((rank, exception_queue.get()))
+            if exceptions:
+                msg = "\n".join(f"Rank {rank}: {exception}" for rank, exception in exceptions)
+                raise RuntimeError(f"Exceptions occurred:\n{msg}")
         except Exception:
             self.terminate()
             raise
@@ -185,7 +199,7 @@ class MPDistRunner:
             output = self.output_queue.get(timeout=timeout)
             exceptions = []
             for rank, exception_queue in enumerate(self.exception_queues):
-                if not exception_queue.empty():
+                if (rank == 0 and isinstance(output, ExceptionOutput)) or not exception_queue.empty():
                     exceptions.append((rank, exception_queue.get()))
             if exceptions:
                 msg = "\n".join(f"Rank {rank}: {exception}" for rank, exception in exceptions)
@@ -193,9 +207,13 @@ class MPDistRunner:
             return output
 
     def init_process_group(self):
+        if dist.is_initialized():
+            return
         dist.init_process_group(world_size=self.world_size, rank=self.rank)
 
     def destroy_process_group(self):
+        if not dist.is_initialized():
+            return
         dist.destroy_process_group()
 
     def init_processor(self):
@@ -205,11 +223,18 @@ class MPDistRunner:
         raise NotImplementedError
 
     @classmethod
-    def worker(cls, runner, args, kwargs, barrier, array_size, shared_array, input_queue, output_queue, exception_queue, status):
+    def worker(
+        cls, runner, args, kwargs, barrier, array_size, shared_array, input_queue, output_queue, exception_queue, status,
+    ):
         runner.init_process_group()
 
         try:
-            runner.init_processor(*args, **kwargs)
+            try:
+                runner.init_processor(*args, **kwargs)
+            except Exception as e:
+                exception = RuntimeError(f"Failed to initialize processor: {e}\n{traceback.format_exc()}")
+                if exception_queue is not None:
+                    exception_queue.put(exception)
             barrier.wait()
             if output_queue is not None:
                 output_queue.put(True)
@@ -255,12 +280,15 @@ class MPDistRunner:
                     with status.get_lock():
                         status.value = 2
 
-                if output_queue is not None:
-                    output_queue.put(output)
-
                 if exception_queue is not None:
                     if exception is not None:
                         exception_queue.put(exception)
+
+                if output_queue is not None:
+                    if exception is None:
+                        output_queue.put(output)
+                    else:
+                        output_queue.put(ExceptionOutput())
 
                 barrier.wait()
 
