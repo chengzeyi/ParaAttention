@@ -205,11 +205,13 @@ class CachedTransformerBlocks(torch.nn.Module):
                 [encoder_hidden_states.shape[1], hidden_states.shape[1] - encoder_hidden_states.shape[1]], dim=1
             )
 
-        hidden_states_shape = hidden_states.shape
-        encoder_hidden_states_shape = encoder_hidden_states.shape
+        # hidden_states_shape = hidden_states.shape
+        # encoder_hidden_states_shape = encoder_hidden_states.shape
+        # hidden_states = hidden_states.flatten().contiguous().reshape(hidden_states_shape)
+        # encoder_hidden_states = encoder_hidden_states.flatten().contiguous().reshape(encoder_hidden_states_shape)
 
-        hidden_states = hidden_states.flatten().contiguous().reshape(hidden_states_shape)
-        encoder_hidden_states = encoder_hidden_states.flatten().contiguous().reshape(encoder_hidden_states_shape)
+        hidden_states = hidden_states.contiguous()
+        encoder_hidden_states = encoder_hidden_states.contiguous()
 
         hidden_states_residual = hidden_states - original_hidden_states
         encoder_hidden_states_residual = encoder_hidden_states - original_encoder_hidden_states

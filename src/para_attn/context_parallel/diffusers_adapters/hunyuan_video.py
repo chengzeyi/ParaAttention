@@ -110,51 +110,9 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
 
         with SparseKVAttnMode(), UnifiedAttnMode(mesh):
             # 4. Transformer blocks
-            if torch.is_grad_enabled() and self.gradient_checkpointing:
-
-                def create_custom_forward(module, return_dict=None):
-                    def custom_forward(*inputs):
-                        if return_dict is not None:
-                            return module(*inputs, return_dict=return_dict)
-                        else:
-                            return module(*inputs)
-
-                    return custom_forward
-
-                ckpt_kwargs: Dict[str, Any] = {"use_reentrant": False}
-
-                for block in self.transformer_blocks:
-                    hidden_states, encoder_hidden_states = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(block),
-                        hidden_states,
-                        encoder_hidden_states,
-                        temb,
-                        attention_mask,
-                        image_rotary_emb,
-                        **ckpt_kwargs,
-                    )
-
-                for block in self.single_transformer_blocks:
-                    hidden_states, encoder_hidden_states = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(block),
-                        hidden_states,
-                        encoder_hidden_states,
-                        temb,
-                        attention_mask,
-                        image_rotary_emb,
-                        **ckpt_kwargs,
-                    )
-
-            else:
-                for block in self.transformer_blocks:
-                    hidden_states, encoder_hidden_states = block(
-                        hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
-                    )
-
-                for block in self.single_transformer_blocks:
-                    hidden_states, encoder_hidden_states = block(
-                        hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
-                    )
+            hidden_states, encoder_hidden_states = self.call_transformer_blocks(
+                hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
+            )
 
         # 5. Output projection
         hidden_states = self.norm_out(hidden_states, temb)
@@ -181,6 +139,51 @@ def parallelize_transformer(transformer: HunyuanVideoTransformer3DModel, *, mesh
         return Transformer2DModelOutput(sample=hidden_states)
 
     transformer.forward = new_forward.__get__(transformer)
+
+    def call_transformer_blocks(self, hidden_states, encoder_hidden_states, *args, **kwargs):
+        if torch.is_grad_enabled() and self.gradient_checkpointing:
+
+            def create_custom_forward(module, return_dict=None):
+                def custom_forward(*inputs):
+                    if return_dict is not None:
+                        return module(*inputs, return_dict=return_dict)
+                    else:
+                        return module(*inputs)
+
+                return custom_forward
+
+            ckpt_kwargs: Dict[str, Any] = {"use_reentrant": False}
+
+            for block in self.transformer_blocks:
+                hidden_states, encoder_hidden_states = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(block),
+                    hidden_states,
+                    encoder_hidden_states,
+                    *args,
+                    **kwargs,
+                    **ckpt_kwargs,
+                )
+
+            for block in self.single_transformer_blocks:
+                hidden_states, encoder_hidden_states = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(block),
+                    hidden_states,
+                    encoder_hidden_states,
+                    *args,
+                    **kwargs,
+                    **ckpt_kwargs,
+                )
+
+        else:
+            for block in self.transformer_blocks:
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
+
+            for block in self.single_transformer_blocks:
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
+
+        return hidden_states, encoder_hidden_states
+
+    transformer.call_transformer_blocks = call_transformer_blocks.__get__(transformer)
 
     transformer._is_parallelized = True
 

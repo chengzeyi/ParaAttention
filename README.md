@@ -144,7 +144,7 @@ and the performance might be worse due to frequent memory re-allocation.
 ## Install from PyPI
 
 ```bash
-pip3 install 'torch==2.5.0'
+pip3 install 'torch==2.6.0'
 pip3 install para-attn
 ```
 
@@ -155,7 +155,7 @@ git clone https://github.com/chengzeyi/ParaAttention.git
 cd ParaAttention
 git submodule update --init --recursive
 
-pip3 install 'torch==2.5.0'
+pip3 install 'torch==2.6.0'
 pip3 install 'setuptools>=64' 'setuptools_scm>=8'
 
 # Pass --no-use-pep517 to speed up rebuild by using the legacy build system
@@ -299,5 +299,5 @@ torchrun --nproc_per_node=2 test.py
 # Run Tests
 
 ```bash
-DISTRIBUTED_TESTS_DEFAULT_TIMEOUT=3000 pytest tests
+pytest tests --html=report.html --self-contained-html
 ```

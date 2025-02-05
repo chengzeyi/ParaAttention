@@ -48,13 +48,17 @@ setup(
         "dev": [
             "pre-commit",
             "pytest>=7.0.0,<8.0.0",  # https://github.com/pytest-dev/pytest/issues/12273
+            "pytest-html",
             "expecttest",
+            "hypothesis",  # Fail to import hypothesis in common_utils, tests are not derandomized
+            #
             "transformers",
             "diffusers",
             "accelerate",
             "peft",
             "protobuf",
             "sentencepiece",
+            "opencv-python",
         ],
         # dependencies for inference server in src/para_attn/server, install by `pip3 install 'para-attn[server]'`
         # or dev and server with `pip3 install 'para-attn[dev,server]'`

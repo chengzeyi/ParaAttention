@@ -96,8 +96,9 @@ def apply_cache_on_transformer(
 
                 encoder_hidden_states = encoder_hidden_states[:, encoder_attention_mask[0].bool()]
 
+                # 4. Transformer blocks
                 hidden_states, encoder_hidden_states = self.call_transformer_blocks(
-                    hidden_states, encoder_hidden_states, temb, guidance, image_rotary_emb
+                    hidden_states, encoder_hidden_states, temb, None, image_rotary_emb
                 )
 
                 # 5. Output projection
@@ -123,8 +124,7 @@ def apply_cache_on_transformer(
 
     transformer.forward = new_forward.__get__(transformer)
 
-    def call_transformer_blocks(self, hidden_states, encoder_hidden_states, temb, guidance, image_rotary_emb):
-        # 4. Transformer blocks
+    def call_transformer_blocks(self, hidden_states, encoder_hidden_states, *args, **kwargs):
         if torch.is_grad_enabled() and self.gradient_checkpointing:
 
             def create_custom_forward(module, return_dict=None):
@@ -143,9 +143,8 @@ def apply_cache_on_transformer(
                     create_custom_forward(block),
                     hidden_states,
                     encoder_hidden_states,
-                    temb,
-                    None,
-                    image_rotary_emb,
+                    *args,
+                    **kwargs,
                     **ckpt_kwargs,
                 )
 
@@ -154,22 +153,17 @@ def apply_cache_on_transformer(
                     create_custom_forward(block),
                     hidden_states,
                     encoder_hidden_states,
-                    temb,
-                    None,
-                    image_rotary_emb,
+                    *args,
+                    **kwargs,
                     **ckpt_kwargs,
                 )
 
         else:
             for block in self.transformer_blocks:
-                hidden_states, encoder_hidden_states = block(
-                    hidden_states, encoder_hidden_states, temb, None, image_rotary_emb
-                )
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
 
             for block in self.single_transformer_blocks:
-                hidden_states, encoder_hidden_states = block(
-                    hidden_states, encoder_hidden_states, temb, None, image_rotary_emb
-                )
+                hidden_states, encoder_hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
 
         return hidden_states, encoder_hidden_states
 

@@ -4,6 +4,7 @@ import unittest
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+from packaging import version
 from torch.overrides import TorchFunctionMode
 
 import para_attn
@@ -129,14 +130,36 @@ class RingAttnFunc(torch.autograd.Function):
         assert _templated_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
         assert torch_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
 
+        cp_options = getattr(torch_ring_attention, "_cp_options", None)
+        if cp_options is None:
+            patch_cp_options_convert_to_f32 = contextlib.nullcontext()
+            patch_cp_options_enable_load_balance = contextlib.nullcontext()
+        else:
+            patch_cp_options_convert_to_f32 = unittest.mock.patch.object(
+                cp_options,
+                "convert_to_f32",
+                not para_attn.config.attention.allow_reduced_precision_compute,
+                create=True,
+            )
+            patch_cp_options_enable_load_balance = unittest.mock.patch.object(
+                cp_options,
+                "enable_load_balance",
+                is_causal,
+                create=True,
+            )
+
         with unittest.mock.patch.object(
             torch_ring_attention,
             "_convert_to_f32",
             not para_attn.config.attention.allow_reduced_precision_compute,
             create=True,
-        ):
+        ), patch_cp_options_convert_to_f32, patch_cp_options_enable_load_balance:
+            seq_dim_args = []
+            if version.parse(torch.__version__) >= version.parse("2.6.0"):
+                seq_dim_args = [query.ndim - 2]
             out, lse = _templated_ring_attention(
                 mesh,
+                *seq_dim_args,
                 para_attn_ops.attention_forward_with_lse,
                 query,
                 key,
