@@ -4,6 +4,7 @@ import torch
 import torch.backends.cuda as cuda_backend
 import torch.nn.functional as F
 from torch.backends.cuda import SDPAParams
+from torch.nn.attention import SDPBackend
 
 aten = torch.ops.aten
 
@@ -133,15 +134,20 @@ def _attention_forward_with_lse(
         params_init_args.append(False)
     params = SDPAParams(*params_init_args)
     dispatches = [
-        ["flash", can_use_flash_attention, flash_attention_forward_with_lse],
-        ["efficient", can_use_efficient_attention, efficient_attention_forward_with_lse],
-        ["cudnn", can_use_cudnn_attention, cudnn_attention_forward_with_lse],
+        ["FLASH_ATTENTION", can_use_flash_attention, flash_attention_forward_with_lse],
+        ["EFFICIENT_ATTENTION", can_use_efficient_attention, efficient_attention_forward_with_lse],
+        ["CUDNN_ATTENTION", can_use_cudnn_attention, cudnn_attention_forward_with_lse],
     ]
-    device_capability = torch.cuda.get_device_capability(device.index)
-    if device_capability >= (9, 0):
-        priority_order = ["cudnn", "flash", "efficient"]
+    if hasattr(torch._C, "_get_sdp_priority_order"):
+        priority_order = torch._C._get_sdp_priority_order()
+        priority_order = [str(SDPBackend(i)).split(".")[-1] for i in priority_order]
     else:
-        priority_order = ["flash", "cudnn", "efficient"]
+        device_capability = torch.cuda.get_device_capability(device.index)
+        if device_capability >= (9, 0):
+            priority_order = ["CUDNN_ATTENTION", "FLASH_ATTENTION", "EFFICIENT_ATTENTION"]
+        else:
+            priority_order = ["FLASH_ATTENTION", "CUDNN_ATTENTION", "EFFICIENT_ATTENTION"]
+    dispatches = [dispatch for dispatch in dispatches if dispatch[0] in priority_order]
     dispatches = sorted(dispatches, key=lambda x: priority_order.index(x[0]))
     for dispatch in dispatches:
         if dispatch[1](params):

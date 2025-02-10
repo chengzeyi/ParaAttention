@@ -92,6 +92,7 @@ class DiffusionPipelineRunner(MPDistRunner):
             except Exception as e:
                 if "is not divisible by world_size" in str(e):
                     pytest.skip(str(e))
+                raise
 
             return output_image, warmup_time, inference_time
 
@@ -148,10 +149,10 @@ class TestFluxPipeline(_TestDiffusionPipeline):
         [
             # [False, False, None, None],
             # [False, True, None, None],
-            # [True, False, None, 2],
-            # [True, True, None, 2],
-            [True, False, None, None],
-            [True, True, None, None],
+            [True, False, None, 2],
+            [True, True, None, 2],
+            # [True, False, None, None],
+            # [True, True, None, None],
         ],
     )
     def test_benchmark_pipe(self, extras, dtype, device, parallelize, compile, max_batch_dim_size, max_ring_dim_size):

@@ -95,7 +95,7 @@ class ParallelAttnRunner(MPDistRunner):
                 return F.scaled_dot_product_attention(*args, **kwargs)
 
             if compile:
-                func = torch.compile(func)
+                func = torch.compile(func, fullgraph=True)
 
             for _ in range(2 if compile else 1):
                 with attn_mode:

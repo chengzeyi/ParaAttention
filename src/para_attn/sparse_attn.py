@@ -46,6 +46,7 @@ class SparseKVAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for SparseKVAttnFunc is not implemented")
 
 
+@torch.compiler.allow_in_graph
 def sparse_kv_attn_func(
     query,
     key,
@@ -282,6 +283,7 @@ class StructuredSparseAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for StructuredSparseAttnFunc is not implemented")
 
 
+@torch.compiler.allow_in_graph
 def struct_sparse_attn_func(
     query,
     key,
@@ -573,6 +575,7 @@ class FocusAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for StructuredSparseAttnFunc is not implemented")
 
 
+@torch.compiler.allow_in_graph
 def focus_attn_func(
     query,
     key,
