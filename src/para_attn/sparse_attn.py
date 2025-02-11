@@ -46,7 +46,6 @@ class SparseKVAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for SparseKVAttnFunc is not implemented")
 
 
-@torch.compiler.allow_in_graph
 def sparse_kv_attn_func(
     query,
     key,
@@ -283,7 +282,6 @@ class StructuredSparseAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for StructuredSparseAttnFunc is not implemented")
 
 
-@torch.compiler.allow_in_graph
 def struct_sparse_attn_func(
     query,
     key,
@@ -575,7 +573,6 @@ class FocusAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for StructuredSparseAttnFunc is not implemented")
 
 
-@torch.compiler.allow_in_graph
 def focus_attn_func(
     query,
     key,
@@ -610,7 +607,7 @@ def focus_attn_func(
 class SparseKVAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(self, *, dispatch_to_custom_ops=True):
         super().__init__()
         self._dispatch_to_custom_ops = dispatch_to_custom_ops
@@ -636,7 +633,7 @@ class SparseKVAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
@@ -646,7 +643,7 @@ class SparseKVAttnMode(TorchFunctionMode):
 class StructSparseAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(
         self,
         *,
@@ -689,7 +686,7 @@ class StructSparseAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
@@ -699,7 +696,7 @@ class StructSparseAttnMode(TorchFunctionMode):
 class FocusAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(
         self,
         *,
@@ -745,7 +742,7 @@ class FocusAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value

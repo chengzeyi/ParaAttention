@@ -1,5 +1,4 @@
 import contextlib
-import unittest
 
 import torch
 import torch.distributed as dist
@@ -84,7 +83,6 @@ def _sdpa_output_all_to_all(x, mesh):
     return x
 
 
-@torch.compiler.allow_in_graph
 def ulysses_attn_func(
     query,
     key,
@@ -115,6 +113,54 @@ def ulysses_attn_func(
     return out
 
 
+@torch.compiler.assume_constant_result
+def _setup_ring_attn_func_forward():
+    _convert_to_f32 = None
+    _cp_options_convert_to_f32 = None
+    _cp_options_enable_load_balance = None
+    _cp_options_rotate_method = None
+
+    assert torch_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
+    _convert_to_f32 = getattr(torch_ring_attention, "_convert_to_f32", None)
+    _cp_options = getattr(torch_ring_attention, "_cp_options", None)
+    if _cp_options is not None:
+        _cp_options_convert_to_f32 = getattr(_cp_options, "convert_to_f32", None)
+        if _cp_options_convert_to_f32 is not None:
+            _cp_options.convert_to_f32 = not para_attn.config.attention.allow_reduced_precision_compute
+        _cp_options_enable_load_balance = getattr(_cp_options, "enable_load_balance", None)
+        if _cp_options_enable_load_balance is not None:
+            _cp_options.enable_load_balance = False
+        _cp_options_rotate_method = getattr(_cp_options, "rotate_method", None)
+        if _cp_options_rotate_method is not None:
+            _cp_options_rotate_method = _cp_options_rotate_method.value
+            _cp_options.rotate_method = torch_ring_attention._RotateMethod.ALL_TO_ALL
+    return _convert_to_f32, _cp_options_convert_to_f32, _cp_options_enable_load_balance, _cp_options_rotate_method
+
+
+@torch.compiler.assume_constant_result
+def _cleanup_ring_attn_func_forward(
+    _convert_to_f32, _cp_options_convert_to_f32, _cp_options_enable_load_balance, _cp_options_rotate_method
+):
+    if _convert_to_f32 is not None:
+        torch_ring_attention._convert_to_f32 = _convert_to_f32
+    if _cp_options_convert_to_f32 is not None:
+        torch_ring_attention._cp_options.convert_to_f32 = _cp_options_convert_to_f32
+    if _cp_options_enable_load_balance is not None:
+        torch_ring_attention._cp_options.enable_load_balance = _cp_options_enable_load_balance
+    if _cp_options_rotate_method is not None:
+        torch_ring_attention._cp_options.rotate_method = torch_ring_attention._RotateMethod(_cp_options_rotate_method)
+
+
+@torch.compiler.assume_constant_result
+def _torch_version_check(op, v):
+    return getattr(version.parse(torch.__version__), op)(version.parse(v))
+
+
+@torch.compiler.assume_constant_result
+def _get_force_dispatch_to_custom_ops():
+    return para_attn.config.attention.force_dispatch_to_custom_ops
+
+
 class RingAttnFunc(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -129,45 +175,12 @@ class RingAttnFunc(torch.autograd.Function):
         mesh,
     ):
         assert _templated_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
-        assert torch_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
 
-        cp_options = getattr(torch_ring_attention, "_cp_options", None)
-        if cp_options is None:
-            patch_cp_options_convert_to_f32 = contextlib.nullcontext()
-            patch_cp_options_enable_load_balance = contextlib.nullcontext()
-            patch_cp_options_rotate_method = contextlib.nullcontext()
-        else:
-            patch_cp_options_convert_to_f32 = unittest.mock.patch.object(
-                cp_options,
-                "convert_to_f32",
-                not para_attn.config.attention.allow_reduced_precision_compute,
-                create=True,
-            )
-            patch_cp_options_enable_load_balance = unittest.mock.patch.object(
-                cp_options,
-                "enable_load_balance",
-                False,
-                create=True,
-            )
-            rotate_method = None
-            if hasattr(torch_ring_attention, "_RotateMethod"):
-                rotate_method = getattr(torch_ring_attention._RotateMethod, "ALL_TO_ALL", None)
-            patch_cp_options_rotate_method = unittest.mock.patch.object(
-                cp_options,
-                "rotate_method",
-                rotate_method,
-                create=True,
-            )
-
-        with unittest.mock.patch.object(
-            torch_ring_attention,
-            "_convert_to_f32",
-            not para_attn.config.attention.allow_reduced_precision_compute,
-            create=True,
-        ), patch_cp_options_convert_to_f32, patch_cp_options_enable_load_balance, patch_cp_options_rotate_method:
-            seq_dim_args = []
-            if version.parse(torch.__version__) >= version.parse("2.6.0"):
-                seq_dim_args = [query.ndim - 2]
+        seq_dim_args = []
+        if _torch_version_check("__ge__", "2.6.0"):
+            seq_dim_args = [query.ndim - 2]
+        settings = _setup_ring_attn_func_forward()
+        try:
             out, lse = _templated_ring_attention(
                 mesh,
                 *seq_dim_args,
@@ -180,6 +193,8 @@ class RingAttnFunc(torch.autograd.Function):
                 is_causal=is_causal,
                 scale=scale,
             )
+        finally:
+            _cleanup_ring_attn_func_forward(*settings)
         out = out.to(query.dtype)
         return out
 
@@ -188,7 +203,6 @@ class RingAttnFunc(torch.autograd.Function):
         raise NotImplementedError("Backward pass for RingAttnFunc is not implemented")
 
 
-@torch.compiler.allow_in_graph
 def ring_attn_func(
     query,
     key,
@@ -227,7 +241,6 @@ def ring_attn_func(
     )
 
 
-@torch.compiler.allow_in_graph
 def in_batch_attn_func(
     query,
     key,
@@ -289,31 +302,13 @@ def _get_args(args, kwargs, *names):
     return results
 
 
-_active_ring_attn_mode = None
-
-
-@torch.compiler.allow_in_graph
-def _call_ring_attn_func(*args, **kwargs):
-    mode = _active_ring_attn_mode
-    mesh = mode._mesh
-    return ring_attn_func(*args, **kwargs, mesh=mesh)
-
-
 class RingAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(self, mesh=None):
         super().__init__()
         self._mesh = mesh
-
-        global _active_ring_attn_mode
-        _active_ring_attn_mode = self
-
-    def __del__(self):
-        global _active_ring_attn_mode
-        if _active_ring_attn_mode is self:
-            _active_ring_attn_mode = None
 
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
@@ -322,9 +317,13 @@ class RingAttnMode(TorchFunctionMode):
             return func(*args, **kwargs)
 
         if func is F.scaled_dot_product_attention:
-            return _call_ring_attn_func(*args, **kwargs)
+            return self._call_ring_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
+
+    def _call_ring_attn_func(self, *args, **kwargs):
+        mesh = self._mesh
+        return ring_attn_func(*args, **kwargs, mesh=mesh)
 
     @classmethod
     @contextlib.contextmanager
@@ -336,38 +335,20 @@ class RingAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
         return old_disabled
 
 
-_active_ulysses_attn_mode = None
-
-
-@torch.compiler.allow_in_graph
-def _call_ulysses_attn_func(*args, **kwargs):
-    mode = _active_ulysses_attn_mode
-    mesh = mode._mesh
-    return ulysses_attn_func(*args, **kwargs, mesh=mesh)
-
-
 class UlyssesAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(self, mesh=None):
         super().__init__()
         self._mesh = mesh
-
-        global _active_ulysses_attn_mode
-        _active_ulysses_attn_mode = self
-
-    def __del__(self):
-        global _active_ulysses_attn_mode
-        if _active_ulysses_attn_mode is self:
-            _active_ulysses_attn_mode = None
 
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
@@ -376,9 +357,13 @@ class UlyssesAttnMode(TorchFunctionMode):
             return func(*args, **kwargs)
 
         if func is F.scaled_dot_product_attention:
-            return _call_ulysses_attn_func(*args, **kwargs)
+            return self._call_ulysses_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
+
+    def _call_ulysses_attn_func(self, *args, **kwargs):
+        mesh = self._mesh
+        return ulysses_attn_func(*args, **kwargs, mesh=mesh)
 
     @classmethod
     @contextlib.contextmanager
@@ -390,56 +375,17 @@ class UlyssesAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
         return old_disabled
 
 
-_active_unified_attn_mode = None
-
-
-@torch.compiler.allow_in_graph
-def _call_unified_attn_func(*args, **kwargs):
-    func = F.scaled_dot_product_attention
-    mode = _active_unified_attn_mode
-    parallel_method = mode._parallel_method
-    if parallel_method == "ulysses":
-        mode._parallel_method = "ring"
-        try:
-            with mode:
-                if mode._ulysses_mesh is None:
-                    out = func(*args, **kwargs)
-                else:
-                    out = ulysses_attn_func(*args, **kwargs, mesh=mode._ulysses_mesh)
-        finally:
-            mode._parallel_method = parallel_method
-    elif parallel_method == "ring":
-        mode._parallel_method = "none"
-        try:
-            with mode:
-                if mode._ring_mesh is None:
-                    out = func(*args, **kwargs)
-                else:
-                    out = ring_attn_func(*args, **kwargs, mesh=mode._ring_mesh)
-        finally:
-            mode._parallel_method = parallel_method
-    elif parallel_method == "none":
-        if para_attn.config.attention.force_dispatch_to_custom_ops:
-            out = para_attn_ops.attention_forward(*args, **kwargs)
-        else:
-            out = func(*args, **kwargs)
-    else:
-        raise ValueError(f"Unknown parallel method: {parallel_method}")
-
-    return out
-
-
 class UnifiedAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(self, mesh=None):
         super().__init__()
 
@@ -468,14 +414,6 @@ class UnifiedAttnMode(TorchFunctionMode):
                     self._ulysses_mesh is not None or self._ring_mesh is not None
                 ), "mesh must have ulysses or ring dim"
 
-        global _active_unified_attn_mode
-        _active_unified_attn_mode = self
-
-    def __del__(self):
-        global _active_unified_attn_mode
-        if _active_unified_attn_mode is self:
-            _active_unified_attn_mode = None
-
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
 
@@ -483,9 +421,42 @@ class UnifiedAttnMode(TorchFunctionMode):
             return func(*args, **kwargs)
 
         if func is F.scaled_dot_product_attention:
-            return _call_unified_attn_func(*args, **kwargs)
+            return self._call_unified_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
+
+    def _call_unified_attn_func(self, *args, **kwargs):
+        func = F.scaled_dot_product_attention
+        parallel_method = self._parallel_method
+        if parallel_method == "ulysses":
+            self._parallel_method = "ring"
+            try:
+                with self:
+                    if self._ulysses_mesh is None:
+                        out = func(*args, **kwargs)
+                    else:
+                        out = ulysses_attn_func(*args, **kwargs, mesh=self._ulysses_mesh)
+            finally:
+                self._parallel_method = parallel_method
+        elif parallel_method == "ring":
+            self._parallel_method = "none"
+            try:
+                with self:
+                    if self._ring_mesh is None:
+                        out = func(*args, **kwargs)
+                    else:
+                        out = ring_attn_func(*args, **kwargs, mesh=self._ring_mesh)
+            finally:
+                self._parallel_method = parallel_method
+        elif parallel_method == "none":
+            if _get_force_dispatch_to_custom_ops():
+                out = para_attn_ops.attention_forward(*args, **kwargs)
+            else:
+                out = func(*args, **kwargs)
+        else:
+            raise ValueError(f"Unknown parallel method: {parallel_method}")
+
+        return out
 
     @classmethod
     @contextlib.contextmanager
@@ -497,7 +468,7 @@ class UnifiedAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
@@ -507,7 +478,7 @@ class UnifiedAttnMode(TorchFunctionMode):
 class InBatchAttnMode(TorchFunctionMode):
     disabled = False
 
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def __init__(self):
         super().__init__()
 
@@ -532,7 +503,7 @@ class InBatchAttnMode(TorchFunctionMode):
             cls._set_disabled(old_disabled)
 
     @classmethod
-    @torch.compiler.disable()
+    @torch.compiler.disable
     def _set_disabled(cls, value):
         old_disabled = cls.disabled
         cls.disabled = value
