@@ -289,12 +289,12 @@ def _get_args(args, kwargs, *names):
     return results
 
 
-_ring_attn_mode_stack = []
+_active_ring_attn_mode = None
 
 
 @torch.compiler.allow_in_graph
 def _call_ring_attn_func(*args, **kwargs):
-    mode = _ring_attn_mode_stack[-1]
+    mode = _active_ring_attn_mode
     mesh = mode._mesh
     return ring_attn_func(*args, **kwargs, mesh=mesh)
 
@@ -307,6 +307,14 @@ class RingAttnMode(TorchFunctionMode):
         super().__init__()
         self._mesh = mesh
 
+        global _active_ring_attn_mode
+        _active_ring_attn_mode = self
+
+    def __del__(self):
+        global _active_ring_attn_mode
+        if _active_ring_attn_mode is self:
+            _active_ring_attn_mode = None
+
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
 
@@ -317,16 +325,6 @@ class RingAttnMode(TorchFunctionMode):
             return _call_ring_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-        _ring_attn_mode_stack.append(self)
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        _ring_attn_mode_stack.pop()
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager
@@ -345,12 +343,12 @@ class RingAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-_ulysses_attn_mode_stack = []
+_active_ulysses_attn_mode = None
 
 
 @torch.compiler.allow_in_graph
 def _call_ulysses_attn_func(*args, **kwargs):
-    mode = _ulysses_attn_mode_stack[-1]
+    mode = _active_ulysses_attn_mode
     mesh = mode._mesh
     return ulysses_attn_func(*args, **kwargs, mesh=mesh)
 
@@ -363,6 +361,14 @@ class UlyssesAttnMode(TorchFunctionMode):
         super().__init__()
         self._mesh = mesh
 
+        global _active_ulysses_attn_mode
+        _active_ulysses_attn_mode = self
+
+    def __del__(self):
+        global _active_ulysses_attn_mode
+        if _active_ulysses_attn_mode is self:
+            _active_ulysses_attn_mode = None
+
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
 
@@ -373,16 +379,6 @@ class UlyssesAttnMode(TorchFunctionMode):
             return _call_ulysses_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-        _ulysses_attn_mode_stack.append(self)
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        _ulysses_attn_mode_stack.pop()
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager
@@ -401,13 +397,13 @@ class UlyssesAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-_unified_attn_mode_stack = []
+_active_unified_attn_mode = None
 
 
 @torch.compiler.allow_in_graph
 def _call_unified_attn_func(*args, **kwargs):
     func = F.scaled_dot_product_attention
-    mode = _unified_attn_mode_stack[-1]
+    mode = _active_unified_attn_mode
     parallel_method = mode._parallel_method
     if parallel_method == "ulysses":
         mode._parallel_method = "ring"
@@ -472,6 +468,14 @@ class UnifiedAttnMode(TorchFunctionMode):
                     self._ulysses_mesh is not None or self._ring_mesh is not None
                 ), "mesh must have ulysses or ring dim"
 
+        global _active_unified_attn_mode
+        _active_unified_attn_mode = self
+
+    def __del__(self):
+        global _active_unified_attn_mode
+        if _active_unified_attn_mode is self:
+            _active_unified_attn_mode = None
+
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
 
@@ -482,16 +486,6 @@ class UnifiedAttnMode(TorchFunctionMode):
             return _call_unified_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-        _unified_attn_mode_stack.append(self)
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        _unified_attn_mode_stack.pop()
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager
@@ -527,14 +521,6 @@ class InBatchAttnMode(TorchFunctionMode):
             return in_batch_attn_func(*args, **kwargs)
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager

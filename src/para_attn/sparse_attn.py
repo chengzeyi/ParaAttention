@@ -626,14 +626,6 @@ class SparseKVAttnMode(TorchFunctionMode):
 
         return func(*args, **kwargs)
 
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        super().__exit__(*args)
-
     @classmethod
     @contextlib.contextmanager
     def disable(cls):
@@ -686,14 +678,6 @@ class StructSparseAttnMode(TorchFunctionMode):
             )
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager
@@ -750,14 +734,6 @@ class FocusAttnMode(TorchFunctionMode):
             )
 
         return func(*args, **kwargs)
-
-    @torch.compiler.disable()
-    def __enter__(self):
-        super().__enter__()
-
-    @torch.compiler.disable()
-    def __exit__(self, *args):
-        super().__exit__(*args)
 
     @classmethod
     @contextlib.contextmanager
