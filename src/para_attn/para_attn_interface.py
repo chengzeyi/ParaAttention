@@ -3,8 +3,6 @@ import contextlib
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from packaging import version
-from torch.overrides import TorchFunctionMode
 
 import para_attn
 import para_attn.ops as para_attn_ops
@@ -17,6 +15,7 @@ from para_attn.sparse_attn import (
     struct_sparse_attn_func,
     StructSparseAttnMode,
 )
+from para_attn.utils import _get_force_dispatch_to_custom_ops, _torch_version_check, BaseTorchFunctionMode
 
 try:
     from torch.distributed.tensor.experimental._attention import _templated_ring_attention
@@ -149,16 +148,6 @@ def _cleanup_ring_attn_func_forward(
         torch_ring_attention._cp_options.enable_load_balance = _cp_options_enable_load_balance
     if _cp_options_rotate_method is not None:
         torch_ring_attention._cp_options.rotate_method = torch_ring_attention._RotateMethod(_cp_options_rotate_method)
-
-
-@torch.compiler.assume_constant_result
-def _torch_version_check(op, v):
-    return getattr(version.parse(torch.__version__), op)(version.parse(v))
-
-
-@torch.compiler.assume_constant_result
-def _get_force_dispatch_to_custom_ops():
-    return para_attn.config.attention.force_dispatch_to_custom_ops
 
 
 class RingAttnFunc(torch.autograd.Function):
@@ -302,7 +291,7 @@ def _get_args(args, kwargs, *names):
     return results
 
 
-class RingAttnMode(TorchFunctionMode):
+class RingAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -314,12 +303,12 @@ class RingAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if RingAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return self._call_ring_attn_func(*args, **kwargs)
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     def _call_ring_attn_func(self, *args, **kwargs):
         mesh = self._mesh
@@ -342,7 +331,7 @@ class RingAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-class UlyssesAttnMode(TorchFunctionMode):
+class UlyssesAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -354,12 +343,12 @@ class UlyssesAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if UlyssesAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return self._call_ulysses_attn_func(*args, **kwargs)
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     def _call_ulysses_attn_func(self, *args, **kwargs):
         mesh = self._mesh
@@ -382,7 +371,7 @@ class UlyssesAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-class UnifiedAttnMode(TorchFunctionMode):
+class UnifiedAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -418,12 +407,12 @@ class UnifiedAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if UnifiedAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return self._call_unified_attn_func(*args, **kwargs)
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     def _call_unified_attn_func(self, *args, **kwargs):
         func = F.scaled_dot_product_attention
@@ -475,7 +464,7 @@ class UnifiedAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-class InBatchAttnMode(TorchFunctionMode):
+class InBatchAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -486,12 +475,12 @@ class InBatchAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if InBatchAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return in_batch_attn_func(*args, **kwargs)
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     @classmethod
     @contextlib.contextmanager

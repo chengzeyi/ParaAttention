@@ -2,10 +2,10 @@ import contextlib
 
 import torch
 import torch.nn.functional as F
-from torch.overrides import TorchFunctionMode
 
 import para_attn
 import para_attn.ops as para_attn_ops
+from para_attn.utils import BaseTorchFunctionMode
 
 try:
     import torch.distributed.tensor.experimental._attention as torch_ring_attention
@@ -604,7 +604,7 @@ def focus_attn_func(
     )
 
 
-class SparseKVAttnMode(TorchFunctionMode):
+class SparseKVAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -616,12 +616,12 @@ class SparseKVAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if SparseKVAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return sparse_kv_attn_func(*args, **kwargs, dispatch_to_custom_ops=self._dispatch_to_custom_ops)
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     @classmethod
     @contextlib.contextmanager
@@ -640,7 +640,7 @@ class SparseKVAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-class StructSparseAttnMode(TorchFunctionMode):
+class StructSparseAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -662,7 +662,7 @@ class StructSparseAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if StructSparseAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return struct_sparse_attn_func(
@@ -674,7 +674,7 @@ class StructSparseAttnMode(TorchFunctionMode):
                 print_attn_weight_means=self._print_attn_weight_means,
             )
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     @classmethod
     @contextlib.contextmanager
@@ -693,7 +693,7 @@ class StructSparseAttnMode(TorchFunctionMode):
         return old_disabled
 
 
-class FocusAttnMode(TorchFunctionMode):
+class FocusAttnMode(BaseTorchFunctionMode):
     disabled = False
 
     @torch.compiler.disable
@@ -717,7 +717,7 @@ class FocusAttnMode(TorchFunctionMode):
         kwargs = {} if kwargs is None else kwargs
 
         if FocusAttnMode.disabled:
-            return func(*args, **kwargs)
+            return super().__torch_function__(func, types, args, kwargs)
 
         if func is F.scaled_dot_product_attention:
             return focus_attn_func(
@@ -730,7 +730,7 @@ class FocusAttnMode(TorchFunctionMode):
                 print_attn_weight_means=self._print_attn_weight_means,
             )
 
-        return func(*args, **kwargs)
+        return super().__torch_function__(func, types, args, kwargs)
 
     @classmethod
     @contextlib.contextmanager
