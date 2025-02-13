@@ -270,20 +270,33 @@ def _attention_forward_sparse_kv(
     assert not is_causal, "is_causal is not supported with sparse kv"
 
     s_kv = key.shape[-2]
-    while attn_mask.ndim > 1:
-        attn_mask = attn_mask[0]
     indices = torch.arange(s_kv, device=key.device)
-    indices = indices[attn_mask]
-    key = key[..., indices, :]
-    value = value[..., indices, :]
-    return F.scaled_dot_product_attention(
-        query,
-        key,
-        value,
-        dropout_p=dropout_p,
-        is_causal=is_causal,
-        scale=scale,
-    )
+
+    outputs = []
+    for q, k, v, m in zip(query, key, value, attn_mask):
+        q = q.unsqueeze(0)
+        k = k.unsqueeze(0)
+        v = v.unsqueeze(0)
+        while m.ndim > 1:
+            m = m[0]
+        indices_ = indices[m]
+        k = k[..., indices_, :]
+        v = v[..., indices_, :]
+        outputs.append(
+            F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                dropout_p=dropout_p,
+                is_causal=is_causal,
+                scale=scale,
+            )
+        )
+        del q, k, v, m, indices_
+
+    if len(outputs) == 1:
+        return outputs[0]
+    return torch.cat(outputs, dim=0)
 
 
 @_torch_custom_op_wrapper("para_attn::attention_forward_sparse_kv", mutates_args=(), device_types=("cpu", "cuda"))

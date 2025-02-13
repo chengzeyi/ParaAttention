@@ -1,8 +1,9 @@
-from packaging import version
 import torch
-import para_attn
+from packaging import version
 
 from torch.overrides import TorchFunctionMode
+
+import para_attn
 
 
 @torch.compiler.assume_constant_result

@@ -8,6 +8,7 @@ from diffusers.models.modeling_outputs import Transformer2DModelOutput
 from diffusers.utils import logging, scale_lora_layers, unscale_lora_layers, USE_PEFT_BACKEND
 
 from para_attn.first_block_cache import utils
+from para_attn.para_attn_interface import SparseKVAttnMode
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -96,10 +97,20 @@ def apply_cache_on_transformer(
 
                 encoder_hidden_states = encoder_hidden_states[:, encoder_attention_mask[0].bool()]
 
-                # 4. Transformer blocks
-                hidden_states, encoder_hidden_states = self.call_transformer_blocks(
-                    hidden_states, encoder_hidden_states, temb, None, image_rotary_emb
-                )
+                # 3. Attention mask preparation
+                latent_sequence_length = hidden_states.shape[1]
+                latent_attention_mask = torch.ones(
+                    batch_size, 1, latent_sequence_length, device=hidden_states.device, dtype=torch.bool
+                )  # [B, 1, N]
+                attention_mask = torch.cat(
+                    [latent_attention_mask, encoder_attention_mask.unsqueeze(1).to(torch.bool)], dim=-1
+                )  # [B, 1, N + M]
+
+                with SparseKVAttnMode():
+                    # 4. Transformer blocks
+                    hidden_states, encoder_hidden_states = self.call_transformer_blocks(
+                        hidden_states, encoder_hidden_states, temb, attention_mask, image_rotary_emb
+                    )
 
                 # 5. Output projection
                 hidden_states = self.norm_out(hidden_states, temb)

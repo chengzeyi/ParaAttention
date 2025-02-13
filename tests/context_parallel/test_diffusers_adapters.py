@@ -61,7 +61,7 @@ class DiffusionPipelineRunner(MPDistRunner):
                     torch._inductor.config.reorder_for_compute_comm_overlap = True
                 # If cudagraphs is enabled and parallelize is True, the test will hang indefinitely
                 # after the last iteration.
-                
+
                 # TODO: Why CogVideoX fails with max-autotune-no-cudagraphs by outputing NAN?
                 pipe.transformer = torch.compile(pipe.transformer)
 
