@@ -121,6 +121,8 @@ def _setup_ring_attn_func_forward():
 
     assert torch_ring_attention is not None, "RingAttnFunc requires a newer version of PyTorch"
     _convert_to_f32 = getattr(torch_ring_attention, "_convert_to_f32", None)
+    if _convert_to_f32 is not None:
+        torch_ring_attention._convert_to_f32 = not para_attn.config.attention.allow_reduced_precision_compute
     _cp_options = getattr(torch_ring_attention, "_cp_options", None)
     if _cp_options is not None:
         _cp_options_convert_to_f32 = getattr(_cp_options, "convert_to_f32", None)
