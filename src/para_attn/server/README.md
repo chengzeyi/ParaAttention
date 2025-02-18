@@ -9,7 +9,7 @@ This folder contains a server implemented with python/flask that can be used to 
   - **400 BAD_REQUEST**: Request contains invalid arguments or output directory does not exist.
   - **500 INTERNAL_SERVER_ERROR**: An internal error occurred during request processing.
 
-- **`/request_status/<request_id>` (POST)**: Checks the status of a specific generation request using the provided `request_id`. Determines if the request is in flight, completed, or not found.
+- **`/get_output/<request_id>` (POST)**: Checks the status of a specific generation request using the provided `request_id`. Determines if the request is in flight, completed, or not found. If request is completed, the output is returned along with the file type
   - **200 OK**: Request is completed and output is available.
   - **202 ACCEPTED**: Request is still in flight.
   - **404 NOT_FOUND**: No request currently in flight with the provided request ID.

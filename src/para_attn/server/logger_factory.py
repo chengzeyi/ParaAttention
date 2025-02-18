@@ -1,5 +1,5 @@
-import functools
 import logging
+
 
 class LoggerFactory:
     @staticmethod
@@ -28,4 +28,3 @@ class LoggerFactory:
         ch.setFormatter(formatter)
         logger_.addHandler(ch)
         return logger_
-
