@@ -60,5 +60,11 @@ setup(
             "sentencepiece",
             "opencv-python",
         ],
+        # dependencies for inference server in src/para_attn/server, install by `pip3 install 'para-attn[server]'`
+        # or dev and server with `pip3 install 'para-attn[dev,server]'`
+        "server": [
+            "typer",
+            "flask",
+        ],
     },
 )
