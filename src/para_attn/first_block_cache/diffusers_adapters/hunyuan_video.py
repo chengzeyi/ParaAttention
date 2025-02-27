@@ -99,6 +99,7 @@ def apply_cache_on_transformer(
                 encoder_hidden_states = self.context_embedder(encoder_hidden_states, timestep, encoder_attention_mask)
 
                 encoder_hidden_states = encoder_hidden_states[:, encoder_attention_mask[0].bool()]
+                encoder_attention_mask = encoder_attention_mask[:, encoder_attention_mask[0].bool()]
 
                 # 3. Attention mask preparation
                 latent_sequence_length = hidden_states.shape[1]
