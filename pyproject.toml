@@ -18,6 +18,9 @@ Repository = "https://github.com/chengzeyi/ParaAttention"
 requires = ["setuptools>=64", "setuptools_scm>=8"]
 # build-backend = "setuptools.build_meta"
 
+[project.scripts]
+para-attn-server = "para_attn.server.cli:app"
+
 [tool.black]
 
 line-length = 120
