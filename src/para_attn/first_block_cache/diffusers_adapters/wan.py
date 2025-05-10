@@ -59,21 +59,26 @@ def apply_cache_on_pipe(
     slg_end: float = 0.1,
     **kwargs,
 ):
+    cache_kwargs, kwargs = utils.collect_cache_kwargs(
+        default_attrs={
+            "residual_diff_threshold": residual_diff_threshold,
+            "downsample_factor": downsample_factor,
+            "enable_alter_cache": True,
+            "slg_layers": slg_layers,
+            "slg_start": slg_start,
+            "slg_end": slg_end,
+            "num_inference_steps": kwargs.get("num_inference_steps", 50),
+        },
+        **kwargs,
+    )
     if not getattr(pipe, "_is_cached", False):
         original_call = pipe.__class__.__call__
 
         @functools.wraps(original_call)
         def new_call(self, *args, **kwargs):
-            num_inference_steps = kwargs.get("num_inference_steps", 50)
             with utils.cache_context(
                 utils.create_cache_context(
-                    residual_diff_threshold=residual_diff_threshold,
-                    downsample_factor=downsample_factor,
-                    enable_alter_cache=True,
-                    slg_layers=slg_layers,
-                    slg_start=slg_start,
-                    slg_end=slg_end,
-                    num_inference_steps=num_inference_steps,
+                    **cache_kwargs,
                 )
             ):
                 return original_call(self, *args, **kwargs)
