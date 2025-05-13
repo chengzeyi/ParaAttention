@@ -402,7 +402,7 @@ class UnifiedAttnMode(BaseTorchFunctionMode):
         self._parallel_method = "ulysses"
 
         if mesh is None:
-            self._ulysses_mesh = DP.get_default_group()
+            self._ulysses_mesh = DP.get_group()
             self._ring_mesh = None
         else:
             if isinstance(mesh, dist.ProcessGroup):
