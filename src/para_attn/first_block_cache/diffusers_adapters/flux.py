@@ -62,6 +62,11 @@ def apply_cache_on_pipe(
     downsample_factor=1,
     **kwargs,
 ):
+    cache_kwargs, kwargs = utils.collect_cache_kwargs(
+        default_attrs={"residual_diff_threshold": residual_diff_threshold, "downsample_factor": downsample_factor},
+        **kwargs,
+    )
+
     if not getattr(pipe, "_is_cached", False):
         original_call = pipe.__class__.__call__
 
@@ -69,8 +74,7 @@ def apply_cache_on_pipe(
         def new_call(self, *args, **kwargs):
             with utils.cache_context(
                 utils.create_cache_context(
-                    residual_diff_threshold=residual_diff_threshold,
-                    downsample_factor=downsample_factor,
+                    **cache_kwargs,
                 )
             ):
                 return original_call(self, *args, **kwargs)
