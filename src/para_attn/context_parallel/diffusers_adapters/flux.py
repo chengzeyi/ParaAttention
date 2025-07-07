@@ -38,8 +38,8 @@ def parallelize_transformer(transformer: FluxTransformer2DModel, *, mesh=None):
         hidden_states = DP.get_assigned_chunk(hidden_states, dim=-2, group=seq_mesh)
         encoder_hidden_states = DP.get_assigned_chunk(encoder_hidden_states, dim=0, group=batch_mesh)
         encoder_hidden_states = DP.get_assigned_chunk(encoder_hidden_states, dim=-2, group=seq_mesh)
-        img_ids = DP.get_assigned_chunk(img_ids, dim=-2)
-        txt_ids = DP.get_assigned_chunk(txt_ids, dim=-2)
+        img_ids = DP.get_assigned_chunk(img_ids, dim=-2, group=seq_mesh)
+        txt_ids = DP.get_assigned_chunk(txt_ids, dim=-2, group=seq_mesh)
         if controlnet_block_samples is not None:
             controlnet_block_samples = [
                 DP.get_assigned_chunk(sample, dim=0, group=batch_mesh) for sample in controlnet_block_samples
