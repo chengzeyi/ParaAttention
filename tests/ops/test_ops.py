@@ -50,7 +50,7 @@ def test_attention_forward_with_lse(dtype, device, backend, B, H, S_Q, S_KV, D, 
             except Exception as e:
                 pytest.skip(f"Cannot run {backend} on this configuration: {e}")
 
-        out, lse = para_attn_ops.attention_forward_with_lse(
+        out_new, lse = para_attn_ops.attention_forward_with_lse(
             query,
             key,
             value,
@@ -59,6 +59,6 @@ def test_attention_forward_with_lse(dtype, device, backend, B, H, S_Q, S_KV, D, 
             is_causal=is_causal,
         )
 
-        torch.testing.assert_close(out, out)
+        torch.testing.assert_close(out, out_new)
         assert lse.dtype == torch.float32
         assert lse.shape == (B, H, S_Q)
