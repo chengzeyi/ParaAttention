@@ -405,12 +405,8 @@ class CachedTransformerBlocks(torch.nn.Module):
                     if not self.return_hidden_states_first:
                         hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
             if self.single_transformer_blocks is not None:
-                hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
                 for block in self.single_transformer_blocks:
-                    hidden_states = block(hidden_states, *args, **kwargs)
-                encoder_hidden_states, hidden_states = hidden_states.split(
-                    [encoder_hidden_states.shape[1], hidden_states.shape[1] - encoder_hidden_states.shape[1]], dim=1
-                )
+                    encoder_hidden_states, hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
         else:
             for i, encoder_block in enumerate(self.transformer_blocks[1:]):
                 if slg_should_skip_block(i + 1):
